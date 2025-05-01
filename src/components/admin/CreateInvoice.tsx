@@ -33,8 +33,9 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import { v4 as uuidv4 } from 'uuid';
-import { Invoice, InvoiceItem, PaymentPlan } from '../../types';
-import { storage } from '../../utils/storage';
+import { Invoice, InvoiceItem, PaymentPlan, User } from '../../types';
+import { userService } from '../../services/userService';
+import { invoiceService } from '../../services/invoiceService';
 import { auth } from '../../services/auth';
 import { Navigation } from '../shared/Navigation';
 import match from 'autosuggest-highlight/match';
@@ -51,8 +52,8 @@ export const CreateInvoice: React.FC = () => {
         date: new Date().toISOString().split('T')[0],
     });
 
-    const [availableClients, setAvailableClients] = useState<Array<{fullName: string}>>([]);
-    const [selectedClient, setSelectedClient] = useState<string | null>(null);
+    const [availableClients, setAvailableClients] = useState<User[]>([]);
+    const [selectedClient, setSelectedClient] = useState<User | null>(null);
 
     const [items, setItems] = useState<InvoiceItem[]>([]);
     const [newItem, setNewItem] = useState<InvoiceItem>({
@@ -95,10 +96,11 @@ export const CreateInvoice: React.FC = () => {
 
     // Cargar la lista de clientes al montar el componente
     useEffect(() => {
-        const users = storage.getUsers().filter(user => user.role === 'client');
-        setAvailableClients(users.map(user => ({
-            fullName: user.fullName
-        })));
+        (async () => {
+            const users = await userService.getUsers();
+            const clients = users.filter(u => u.role === 'client');
+            setAvailableClients(clients);
+        })();
     }, []);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -164,7 +166,7 @@ export const CreateInvoice: React.FC = () => {
         };
     };
 
-    const saveInvoice = () => {
+    const saveInvoice = async () => {
         const { subtotal } = calculateTotal();
         const total = subtotal;
         const currentUser = auth.getCurrentUser();
@@ -181,14 +183,15 @@ export const CreateInvoice: React.FC = () => {
         const initialStatus = diffDays < 0 ? 'delayed' : 'pending';
         const newInvoice: Invoice = {
             id: uuidv4(), invoiceNumber: formData.invoiceNumber, date: formData.date,
-            clientName: selectedClient!, clientId: currentUser!.id,
+            clientName: selectedClient!.fullName,
+            clientId: selectedClient!.id,
             address: formData.address || undefined, cedula: formData.cedula || undefined,
             phone: formData.phone || undefined,
             ...(attachmentPreview && { attachment: attachmentPreview }), items, subtotal, total,
             remainingAmount: total, status: initialStatus, paymentType, payments: [],
             ...(paymentType === 'credit' && { paymentPlan: { ...paymentPlan, paidInstallments: 0, startDate: startDate.toISOString(), nextPaymentDate: nextPaymentDate.toISOString() } as PaymentPlan })
         };
-        storage.addInvoice(newInvoice);
+        await invoiceService.addInvoice(newInvoice);
         setMessage({ text: 'Factura creada exitosamente', isError: false });
         // reset form
         setFormData({ invoiceNumber:'', clientName:'', address:'', cedula:'', phone:'', date:new Date().toISOString().split('T')[0] });
@@ -280,15 +283,11 @@ export const CreateInvoice: React.FC = () => {
                                 <FormControl fullWidth>
                                     <Autocomplete
                                         value={selectedClient}
-                                        onChange={(_, newValue) => {
-                                            setSelectedClient(newValue);
-                                            setFormData(prev => ({
-                                                ...prev,
-                                                clientName: newValue || ''
-                                            }));
-                                        }}
-                                        options={availableClients.map(client => client.fullName)}
-                                        renderInput={(params) => (
+                                        onChange={(_, newValue: User | null) => setSelectedClient(newValue)}
+                                        options={availableClients}
+                                        getOptionLabel={opt => opt.fullName}
+                                        isOptionEqualToValue={(opt, val) => opt.id === val.id}
+                                        renderInput={params => (
                                             <TextField
                                                 {...params}
                                                 label="Buscar Cliente"
@@ -301,28 +300,6 @@ export const CreateInvoice: React.FC = () => {
                                                 }}
                                             />
                                         )}
-                                        renderOption={(props, option, { inputValue }) => {
-                                            const matches = match(option, inputValue, { insideWords: true });
-                                            const parts = parse(option, matches);
-
-                                            return (
-                                                <li {...props}>
-                                                    <div>
-                                                        {parts.map((part: { highlight: boolean; text: string }, index: number) => (
-                                                            <span
-                                                                key={index}
-                                                                style={{
-                                                                    fontWeight: part.highlight ? 700 : 400,
-                                                                    color: part.highlight ? '#E31C79' : 'inherit',
-                                                                }}
-                                                            >
-                                                                {part.text}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                </li>
-                                            );
-                                        }}
                                     />
                                 </FormControl>
                                 <TextField

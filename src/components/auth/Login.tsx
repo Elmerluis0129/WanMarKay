@@ -16,14 +16,18 @@ export const Login: React.FC = () => {
     const [error, setError] = useState('');
     const navigate = useNavigate();
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const user = auth.login({ username, password });
-        
-        if (user) {
-            navigate(user.role === 'admin' ? '/admin' : '/client');
-        } else {
-            setError('Credenciales inválidas');
+        setError('');
+        try {
+            const user = await auth.login({ username, password });
+            if (user) {
+                navigate(user.role === 'admin' ? '/admin' : '/client');
+            } else {
+                setError('Credenciales inválidas');
+            }
+        } catch (err) {
+            setError('Error al autenticar');
         }
     };
 

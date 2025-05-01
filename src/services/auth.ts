@@ -1,21 +1,19 @@
+import { supabase } from './supabase';
 import { User, LoginCredentials } from '../types/user';
-import { storage } from '../utils/storage';
 
 const AUTH_KEY = 'mk_auth';
 
 export const auth = {
-    login: (credentials: LoginCredentials): User | null => {
-        const users = storage.getUsers();
-        const user = users.find(
-            u => u.username === credentials.username && u.password === credentials.password
-        );
-        
-        if (user) {
-            localStorage.setItem(AUTH_KEY, JSON.stringify(user));
-            return user;
-        }
-        
-        return null;
+    login: async (credentials: LoginCredentials): Promise<User | null> => {
+        const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('username', credentials.username)
+            .eq('password', credentials.password)
+            .single();
+        if (error || !data) return null;
+        localStorage.setItem(AUTH_KEY, JSON.stringify(data));
+        return data;
     },
 
     logout: (): void => {
@@ -23,8 +21,8 @@ export const auth = {
     },
 
     getCurrentUser: (): User | null => {
-        const user = localStorage.getItem(AUTH_KEY);
-        return user ? JSON.parse(user) : null;
+        const u = localStorage.getItem(AUTH_KEY);
+        return u ? JSON.parse(u) : null;
     },
 
     isAuthenticated: (): boolean => {

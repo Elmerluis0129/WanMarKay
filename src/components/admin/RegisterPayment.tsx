@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Container,
     Box,
@@ -11,24 +11,41 @@ import {
     Alert
 } from '@mui/material';
 import { Invoice } from '../../types/invoice';
-import { storage } from '../../utils/storage';
+import { invoiceService } from '../../services/invoiceService';
+import { paymentService } from '../../services/paymentService';
 import { Navigation } from '../shared/Navigation';
 import { v4 as uuidv4 } from 'uuid';
 // import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers';
 // import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 // import { es } from 'date-fns/locale';
-import type { TextFieldProps } from '@mui/material';
+// import type { TextFieldProps } from '@mui/material';
 
 export const RegisterPayment: React.FC = () => {
     const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
     const [amount, setAmount] = useState<string>('');
     const [paymentDate, setPaymentDate] = useState<Date | null>(new Date());
     const [message, setMessage] = useState({ text: '', isError: false });
-    const invoices = storage.getInvoices().filter(invoice => 
-        invoice.status !== 'paid' && invoice.status !== 'cancelled'
-    );
+    const [invoices, setInvoices] = useState<Invoice[]>([]);
+    const [loadError, setLoadError] = useState<string|null>(null);
 
-    const handlePaymentSubmit = (e: React.FormEvent) => {
+    // Cargar facturas pendientes o en curso
+    useEffect(() => {
+        (async () => {
+            try {
+                const data = await invoiceService.getInvoices();
+                setInvoices(data.filter(inv => inv.status !== 'paid' && inv.status !== 'cancelled'));
+            } catch (err: any) {
+                console.error('Error cargando facturas:', err);
+                setLoadError(err.message || JSON.stringify(err));
+            }
+        })();
+    }, []);
+
+    if (loadError) {
+        return <Alert severity="error">Error al cargar facturas: {loadError}</Alert>;
+    }
+
+    const handlePaymentSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedInvoice || !amount || !paymentDate) {
             setMessage({ text: 'Por favor complete todos los campos', isError: true });
@@ -54,61 +71,43 @@ export const RegisterPayment: React.FC = () => {
             installmentNumber: selectedInvoice.payments ? selectedInvoice.payments.length + 1 : 1
         };
 
-        // Actualizar la factura
-        const updatedInvoice = {
-            ...selectedInvoice,
-            remainingAmount: selectedInvoice.remainingAmount - paymentAmount,
-            payments: [...(selectedInvoice.payments || []), newPayment]
-        };
-
-        // Actualizar el estado si es necesario
-        if (updatedInvoice.remainingAmount === 0) {
-            updatedInvoice.status = 'paid';
-        } else if (!updatedInvoice.payments || updatedInvoice.payments.length === 0) {
-            // Si no hay pagos previos, mantener como pendiente
-            updatedInvoice.status = 'pending';
-        } else if (updatedInvoice.payments.length === 1) {
-            // Si es el primer pago, cambiar a "A tiempo"
-            updatedInvoice.status = 'on_time';
-        }
-
-        // Si es un pago a crédito, actualizar el plan de pago y verificar fechas
-        if (updatedInvoice.paymentType === 'credit' && updatedInvoice.paymentPlan) {
-            const paymentDateObj = paymentDate;
-            
-            // Verificar si hay una próxima fecha de pago
-            if (updatedInvoice.paymentPlan.nextPaymentDate) {
-                const nextPaymentDate = new Date(updatedInvoice.paymentPlan.nextPaymentDate);
-                
-                // Calcular días restantes para el próximo pago
-                const today = new Date();
-                const diffTime = nextPaymentDate.getTime() - today.getTime();
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-                // Si la fecha de pago es posterior a la fecha del siguiente pago, marcar como retrasado
-                if (paymentDateObj > nextPaymentDate && updatedInvoice.status !== 'paid') {
-                    updatedInvoice.status = 'delayed';
-                } else if (diffDays >= 0 && updatedInvoice.status === 'delayed') {
-                    // Si los días restantes son positivos y estaba retrasada, cambiar a "A tiempo"
-                    updatedInvoice.status = 'on_time';
-                }
-            }
-
-            updatedInvoice.paymentPlan = {
-                ...updatedInvoice.paymentPlan,
-                paidInstallments: (updatedInvoice.paymentPlan.paidInstallments || 0) + 1,
-                nextPaymentDate: calculateNextPaymentDate(updatedInvoice.paymentPlan.frequency, paymentDateObj.toISOString())
-            };
-        }
-
+        // Registrar el pago y actualizar la factura
         try {
-            storage.updateInvoice(updatedInvoice);
+            // Registrar pago pasando el id de la factura
+            await paymentService.registerPayment(selectedInvoice.id, newPayment);
+            const updatedInvoice = {
+                ...selectedInvoice,
+                remainingAmount: selectedInvoice.remainingAmount - paymentAmount,
+                payments: [...(selectedInvoice.payments || []), newPayment]
+            } as Invoice;
+            // Actualizar estado de factura
+            if (updatedInvoice.remainingAmount === 0) {
+                updatedInvoice.status = 'paid';
+            } else if (updatedInvoice.payments?.length === 1) {
+                updatedInvoice.status = 'on_time';
+            }
+            // Lógica de crédito
+            if (updatedInvoice.paymentType === 'credit' && updatedInvoice.paymentPlan) {
+                const dateObj = paymentDate;
+                if (updatedInvoice.paymentPlan.nextPaymentDate) {
+                    const next = new Date(updatedInvoice.paymentPlan.nextPaymentDate);
+                    if (dateObj > next && updatedInvoice.status !== 'paid') updatedInvoice.status = 'delayed';
+                }
+                updatedInvoice.paymentPlan = {
+                    ...updatedInvoice.paymentPlan,
+                    paidInstallments: (updatedInvoice.paymentPlan.paidInstallments || 0) + 1,
+                    nextPaymentDate: calculateNextPaymentDate(updatedInvoice.paymentPlan.frequency, paymentDate.toISOString())
+                };
+            }
+            await invoiceService.updateInvoice(updatedInvoice);
             setMessage({ text: 'Pago registrado exitosamente', isError: false });
             setSelectedInvoice(null);
             setAmount('');
             setPaymentDate(new Date());
-        } catch (error) {
-            setMessage({ text: 'Error al registrar el pago', isError: true });
+        } catch (error: any) {
+            console.error('Error completo:', error);
+            console.error('Detalle:', error.message || error.error || JSON.stringify(error));
+            setMessage({ text: error.message || JSON.stringify(error), isError: true });
         }
     };
 

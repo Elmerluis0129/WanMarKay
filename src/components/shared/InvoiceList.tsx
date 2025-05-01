@@ -28,7 +28,7 @@ import {
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { Invoice } from '../../types/invoice';
 import { PaymentDetailsModal } from './PaymentDetailsModal';
-import { storage } from '../../utils/storage';
+import { invoiceService } from '../../services/invoiceService';
 import { auth } from '../../services/auth';
 
 interface InvoiceListProps {
@@ -115,25 +115,17 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
         });
     };
 
-    const handleConfirmStatusChange = () => {
+    const handleConfirmStatusChange = async () => {
         const { invoiceId, newStatus } = confirmDialog;
         
-        const updatedInvoices = invoices.map(invoice => {
-            if (invoice.id === invoiceId) {
-                const updatedInvoice = { 
-                    ...invoice, 
-                    status: newStatus as 'paid' | 'cancelled'
-                };
-                storage.updateInvoice(updatedInvoice);
-                return updatedInvoice;
-            }
-            return invoice;
-        });
-        
-        setInvoices(updatedInvoices);
-        if (onInvoicesChange) {
-            onInvoicesChange();
+        const inv = invoices.find(i => i.id === invoiceId);
+        if (inv) {
+            const updatedInv = { ...inv, status: newStatus as 'paid' | 'cancelled' };
+            await invoiceService.updateInvoice(updatedInv);
+            setInvoices(invoices.map(i => i.id === invoiceId ? updatedInv : i));
+            if (onInvoicesChange) onInvoicesChange();
         }
+
         setConfirmDialog(prev => ({ ...prev, open: false }));
     };
 

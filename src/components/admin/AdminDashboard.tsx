@@ -1,15 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Container, Box } from '@mui/material';
 import { InvoiceList } from '../shared/InvoiceList';
-import { storage } from '../../utils/storage';
+import { Invoice } from '../../types/invoice';
+import { invoiceService } from '../../services/invoiceService';
 import { Navigation } from '../shared/Navigation';
 
 export const AdminDashboard: React.FC = () => {
-    const [invoices, setInvoices] = useState(storage.getInvoices());    
+    const [invoices, setInvoices] = useState<Invoice[]>([]);
 
-    // Función para recargar las facturas
-    const reloadInvoices = () => {
-        setInvoices(storage.getInvoices());
+    // Carga inicial y recarga de facturas desde Supabase
+    useEffect(() => {
+        (async () => {
+            const data = await invoiceService.getInvoices();
+            setInvoices(data);
+        })();
+    }, []);
+
+    const reloadInvoices = async () => {
+        const data = await invoiceService.getInvoices();
+        setInvoices(data);
     };
 
     return (

@@ -14,7 +14,7 @@ import {
 } from '@mui/material';
 import { v4 as uuidv4 } from 'uuid';
 import { User, UserRole } from '../../types/user';
-import { storage } from '../../utils/storage';
+import { userService } from '../../services/userService';
 import { Navigation } from '../shared/Navigation';
 
 export const CreateUser: React.FC = () => {
@@ -40,7 +40,7 @@ export const CreateUser: React.FC = () => {
         });
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
         const newUser: User = {
@@ -49,7 +49,7 @@ export const CreateUser: React.FC = () => {
         };
 
         try {
-            storage.addUser(newUser);
+            await userService.addUser(newUser);
             setMessage({ text: 'Usuario creado exitosamente', isError: false });
             setFormData({
                 fullName: '',

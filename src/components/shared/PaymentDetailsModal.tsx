@@ -25,7 +25,8 @@ import {
 } from '@mui/material';
 import { Invoice, Payment } from '../../types/invoice';
 import { auth } from '../../services/auth';
-import { storage } from '../../utils/storage';
+import { invoiceService } from '../../services/invoiceService';
+import { paymentService } from '../../services/paymentService';
 import { v4 as uuidv4 } from 'uuid';
 import { addFrequency, calculateDaysRemaining } from '../../utils/dateUtils';
 
@@ -58,9 +59,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
     const [isEditing, setIsEditing] = useState<boolean>(false);
     const [editedInvoice, setEditedInvoice] = useState<Invoice | null>(null);
     const [imageDialogOpen, setImageDialogOpen] = useState<boolean>(false);
-    const [paymentAttachmentFile, setPaymentAttachmentFile] = useState<File | null>(null);
     const [paymentAttachmentPreview, setPaymentAttachmentPreview] = useState<string | null>(null);
-    const [invoiceAttachmentFile, setInvoiceAttachmentFile] = useState<File | null>(null);
     const [invoiceAttachmentPreview, setInvoiceAttachmentPreview] = useState<string | null>(null);
     const isAdmin = auth.getCurrentUser()?.role === 'admin';
 
@@ -79,12 +78,12 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
         }
     }, [invoice]);
 
-    const handleSaveEdit = () => {
+    const handleSaveEdit = async () => {
         if (!editedInvoice) return;
         if (invoiceAttachmentPreview) {
             editedInvoice.attachment = invoiceAttachmentPreview;
         }
-        storage.updateInvoice(editedInvoice);
+        await invoiceService.updateInvoice(editedInvoice);
         if (onPaymentRegistered) onPaymentRegistered(editedInvoice);
         setIsEditing(false);
     };
@@ -106,13 +105,13 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
         });
     };
 
-    const handleConfirmStatusChange = () => {
+    const handleConfirmStatusChange = async () => {
         const { newStatus } = confirmDialog;
         setSelectedStatus(newStatus);
         
         // Actualizar el estado en el almacenamiento
         const updatedInvoice = { ...invoice, status: newStatus as 'paid' | 'cancelled' };
-        storage.updateInvoice(updatedInvoice);
+        await invoiceService.updateInvoice(updatedInvoice);
 
         // Notificar el cambio para actualizar la lista
         if (onStatusChange) {
@@ -153,15 +152,12 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
     const handlePaymentFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            setPaymentAttachmentFile(file);
-            const reader = new FileReader();
-            reader.onload = () => setPaymentAttachmentPreview(reader.result as string);
-            reader.readAsDataURL(file);
+            setPaymentAttachmentPreview(URL.createObjectURL(file));
         }
     };
 
     // Función para registrar el pago de la siguiente cuota
-    const registerPayment = () => {
+    const registerPayment = async () => {
         if (!invoice.paymentPlan) return;
         const plan = invoice.paymentPlan;
         const installmentNumber = plan.paidInstallments + 1;
@@ -180,7 +176,8 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         const statusForPayment = diffDays < 0 ? 'delayed' : 'on_time';
 
-        // Construir factura actualizada
+        // Registrar el pago en la tabla de pagos
+        await paymentService.registerPayment(invoice.id, newPayment);
         const updatedInvoice: Invoice = {
             ...invoice,
             payments: [...(invoice.payments || []), newPayment],
@@ -194,15 +191,10 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
             remainingAmount: invoice.remainingAmount - amount,
             status: installmentNumber >= plan.totalInstallments ? 'paid' : statusForPayment
         };
-        storage.updateInvoice(updatedInvoice);
+        await invoiceService.updateInvoice(updatedInvoice);
         if (onPaymentRegistered) onPaymentRegistered(updatedInvoice);
         if (onStatusChange) onStatusChange();
         setPaymentDialog({ open: false });
-
-        // Si existe una imagen seleccionada, añadimos el attachment al pago
-        if (paymentAttachmentPreview) {
-            newPayment.attachment = paymentAttachmentPreview;
-        }
     };
 
     return (
@@ -255,10 +247,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                                     <input type="file" hidden accept="image/*" onChange={e => {
                                         const file = e.target.files?.[0];
                                         if (file) {
-                                            setInvoiceAttachmentFile(file);
-                                            const reader = new FileReader();
-                                            reader.onload = () => setInvoiceAttachmentPreview(reader.result as string);
-                                            reader.readAsDataURL(file);
+                                            setInvoiceAttachmentPreview(URL.createObjectURL(file));
                                         }
                                     }} />
                                 </Button>
