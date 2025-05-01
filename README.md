@@ -41,49 +41,65 @@ La aplicación se abrirá automáticamente en tu navegador predeterminado en `ht
 
 ## Estructura del Proyecto
 
-```
+```plaintext
 src/
   ├── components/
   │   ├── auth/
   │   │   ├── Login.tsx
   │   │   └── PrivateRoute.tsx
   │   ├── admin/
+  │   │   ├── AdminDashboard.tsx
   │   │   ├── CreateUser.tsx
   │   │   ├── CreateInvoice.tsx
-  │   │   └── AdminDashboard.tsx
+  │   │   └── RegisterPayment.tsx      # Formulario para registrar pagos de cuotas
   │   ├── client/
   │   │   └── ClientDashboard.tsx
   │   └── shared/
-  │       └── InvoiceList.tsx
-  ├── types/
-  │   ├── user.ts
-  │   └── invoice.ts
+  │       ├── InvoiceList.tsx         # Lista de facturas con filtros y acciones
+  │       ├── Navigation.tsx           # Barra de navegación y título de sección
+  │       └── PaymentDetailsModal.tsx  # Modal de detalles de factura y registro de pagos (admin)
+  ├── routes/
+  │   └── AppRoutes.tsx               # Definición de rutas protegidas y públicas
   ├── services/
-  │   ├── auth.ts
-  │   └── storage.ts
-  └── App.tsx
+  │   └── auth.ts                     # Lógica de autenticación y roles
+  ├── utils/
+  │   ├── storage.ts                  # Wrapper de localStorage para usuarios y facturas
+  │   └── dateUtils.ts                # Utilidades para cálculo de fechas y días restantes
+  ├── types/
+  │   ├── invoice.ts                  # Tipos y enums de facturas y plan de pago
+  │   ├── user.ts                     # Tipo de usuario
+  │   ├── index.ts                    # Reexportación de tipos
+  │   └── autosuggest-highlight.d.ts  # Declaraciones de módulos para autosuggest-highlight
+  ├── App.tsx                         # Componente raíz y proveedor de tema
+  ├── index.tsx                       # Punto de entrada de React
+  ├── App.test.tsx                    # Test de renderizado básico de App
+  └── utils/
+      └── dateUtils.test.ts           # Tests unitarios de utilidades de fecha
 ```
 
 ## Uso
 
 ### Como Administrador
 
-1. Inicia sesión con credenciales de administrador
-2. Accede al panel de administración donde puedes:
-   - Crear nuevos usuarios (clientes o administradores)
-   - Crear nuevas facturas
-   - Ver todas las facturas en el sistema
+1. Inicia sesión con credenciales de administrador.
+2. En el panel de administrador podrás:
+   - Crear usuarios (clientes o administradores).
+   - Crear facturas con plan de pagos (configurar frecuencia y cuotas).
+   - Ver todas las facturas con filtros por estado, tipo, cliente o rango de fechas.
+   - Registrar pagos de cada cuota directamente desde el modal de detalles de factura.
+   - Cambiar el estado de la factura a "Pagada" o "Cancelada" cuando corresponda.
 
 ### Como Cliente
 
-1. Inicia sesión con las credenciales proporcionadas por el administrador
-2. Accede al panel de cliente donde puedes:
-   - Ver tus facturas
-   - Ver los detalles de cada factura
+1. Inicia sesión con las credenciales proporcionadas por el administrador.
+2. En tu panel de cliente podrás:
+   - Ver la lista de tus facturas filtradas.
+   - Consultar detalles de cada factura (productos, totales y plan de pagos).
+   - Ver el historial de pagos realizados y los días restantes para tu siguiente cuota.
 
 ## Almacenamiento
 
-Por el momento, la aplicación utiliza almacenamiento local (localStorage) para guardar los datos. En una versión futura, se implementará una base de datos persistente.
+Actualmente los datos se conservan en `localStorage` usando los servicios y utilidades de `storage.ts`. En futuras versiones se integrará una API REST con base de datos.
 
 ## Colores Corporativos
 
