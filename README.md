@@ -1,46 +1,107 @@
-# Getting Started with Create React App
+# Sistema de Registro de Facturas Mary Kay
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Este proyecto es una aplicación web para gestionar facturas de productos Mary Kay, permitiendo a los administradores crear facturas y usuarios, mientras que los clientes pueden ver sus propias facturas.
 
-## Available Scripts
+## Características
 
-In the project directory, you can run:
+- Sistema de autenticación para administradores y clientes
+- Creación y gestión de usuarios
+- Creación de facturas con múltiples productos
+- Cálculo automático de subtotales, ITBIS y totales
+- Vista de facturas filtrada por rol (administrador ve todas, cliente ve solo las suyas)
+- Interfaz moderna y fácil de usar con los colores corporativos de Mary Kay
 
-### `npm start`
+## Requisitos Previos
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+- Node.js (versión 14 o superior)
+- npm (incluido con Node.js)
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+## Instalación
 
-### `npm test`
+1. Clona el repositorio:
+```bash
+git clone [URL_DEL_REPOSITORIO]
+cd registrar-facturas-mk
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+2. Instala las dependencias:
+```bash
+npm install
+```
 
-### `npm run build`
+## Ejecución
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Para iniciar la aplicación en modo desarrollo:
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+```bash
+npm start
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+La aplicación se abrirá automáticamente en tu navegador predeterminado en `http://localhost:3000`.
 
-### `npm run eject`
+## Estructura del Proyecto
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+```
+src/
+  ├── components/
+  │   ├── auth/
+  │   │   ├── Login.tsx
+  │   │   └── PrivateRoute.tsx
+  │   ├── admin/
+  │   │   ├── CreateUser.tsx
+  │   │   ├── CreateInvoice.tsx
+  │   │   └── AdminDashboard.tsx
+  │   ├── client/
+  │   │   └── ClientDashboard.tsx
+  │   └── shared/
+  │       └── InvoiceList.tsx
+  ├── types/
+  │   ├── user.ts
+  │   └── invoice.ts
+  ├── services/
+  │   ├── auth.ts
+  │   └── storage.ts
+  └── App.tsx
+```
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Uso
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+### Como Administrador
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+1. Inicia sesión con credenciales de administrador
+2. Accede al panel de administración donde puedes:
+   - Crear nuevos usuarios (clientes o administradores)
+   - Crear nuevas facturas
+   - Ver todas las facturas en el sistema
 
-## Learn More
+### Como Cliente
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+1. Inicia sesión con las credenciales proporcionadas por el administrador
+2. Accede al panel de cliente donde puedes:
+   - Ver tus facturas
+   - Ver los detalles de cada factura
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## Almacenamiento
+
+Por el momento, la aplicación utiliza almacenamiento local (localStorage) para guardar los datos. En una versión futura, se implementará una base de datos persistente.
+
+## Colores Corporativos
+
+- Rosa Principal: #E31C79
+- Rosa Secundario: #C4156A
+- Blanco: #FFFFFF
+- Gris Texto: #666666
+
+## Contribución
+
+Para contribuir al proyecto:
+
+1. Haz un fork del repositorio
+2. Crea una rama para tu característica (`git checkout -b feature/AmazingFeature`)
+3. Haz commit de tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abre un Pull Request
+
+## Licencia
+
+Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles.

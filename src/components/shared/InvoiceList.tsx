@@ -1,0 +1,381 @@
+import React, { useState, useEffect } from 'react';
+import {
+    Box,
+    Paper,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    Typography,
+    Chip,
+    IconButton,
+    Select,
+    MenuItem,
+    FormControl,
+    SelectChangeEvent,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    Button,
+    Alert,
+    TextField,
+    InputLabel,
+    Grid
+} from '@mui/material';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import { Invoice } from '../../types/invoice';
+import { PaymentDetailsModal } from './PaymentDetailsModal';
+import { storage } from '../../utils/storage';
+import { auth } from '../../services/auth';
+
+interface InvoiceListProps {
+    invoices: Invoice[];
+    title?: string;
+    onInvoicesChange?: () => void;
+}
+
+export const InvoiceList: React.FC<InvoiceListProps> = ({ 
+    invoices: initialInvoices,
+    title = 'Facturas',
+    onInvoicesChange
+}) => {
+    const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
+    useEffect(() => {
+        setInvoices(initialInvoices);
+    }, [initialInvoices]);
+
+    const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+    useEffect(() => {
+        if (selectedInvoice) {
+            const updated = initialInvoices.find(inv => inv.id === selectedInvoice.id) || null;
+            setSelectedInvoice(updated);
+        }
+    }, [initialInvoices]);
+
+    const [confirmDialog, setConfirmDialog] = useState<{
+        open: boolean;
+        currentStatus: string;
+        newStatus: string;
+        invoiceId: string;
+    }>({
+        open: false,
+        currentStatus: '',
+        newStatus: '',
+        invoiceId: ''
+    });
+    const isAdmin = auth.isAdmin();
+
+    // Filtros
+    const [statusFilter, setStatusFilter] = useState<string>('');
+    const [typeFilter, setTypeFilter] = useState<string>('');
+    const [userFilter, setUserFilter] = useState<string>('');
+    const [dateFrom, setDateFrom] = useState<string>('');
+    const [dateTo, setDateTo] = useState<string>('');
+
+    // Opciones de usuarios (clientes)
+    const clientOptions = Array.from(new Set(invoices.map(inv => inv.clientName)));
+
+    // Facturas filtradas según criterios
+    const filteredInvoices = invoices.filter(inv => {
+        return (statusFilter === '' || inv.status === statusFilter)
+            && (typeFilter === '' || inv.paymentType === typeFilter)
+            && (userFilter === '' || inv.clientName === userFilter)
+            && (dateFrom === '' || new Date(inv.date) >= new Date(dateFrom))
+            && (dateTo === '' || new Date(inv.date) <= new Date(dateTo));
+    });
+
+    const clearFilters = () => {
+        setStatusFilter(''); setTypeFilter(''); setUserFilter(''); setDateFrom(''); setDateTo('');
+    };
+
+    const handleOpenModal = (invoice: Invoice) => {
+        setSelectedInvoice(invoice);
+    };
+
+    const handleCloseModal = () => {
+        setSelectedInvoice(null);
+    };
+
+    const handleStatusChange = (invoiceId: string, newStatus: string) => {
+        if (newStatus !== 'cancelled' && newStatus !== 'paid') {
+            return;
+        }
+
+        const invoice = invoices.find(inv => inv.id === invoiceId);
+        if (!invoice) return;
+
+        setConfirmDialog({
+            open: true,
+            currentStatus: invoice.status,
+            newStatus,
+            invoiceId
+        });
+    };
+
+    const handleConfirmStatusChange = () => {
+        const { invoiceId, newStatus } = confirmDialog;
+        
+        const updatedInvoices = invoices.map(invoice => {
+            if (invoice.id === invoiceId) {
+                const updatedInvoice = { 
+                    ...invoice, 
+                    status: newStatus as 'paid' | 'cancelled'
+                };
+                storage.updateInvoice(updatedInvoice);
+                return updatedInvoice;
+            }
+            return invoice;
+        });
+        
+        setInvoices(updatedInvoices);
+        if (onInvoicesChange) {
+            onInvoicesChange();
+        }
+        setConfirmDialog(prev => ({ ...prev, open: false }));
+    };
+
+    const handleCloseConfirmDialog = () => {
+        setConfirmDialog(prev => ({ ...prev, open: false }));
+    };
+
+    const getStatusColor = (status: string): "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning" => {
+        const colors: { [key: string]: "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning" } = {
+            pending: 'warning',
+            paid: 'success',
+            delayed: 'error',
+            cancelled: 'error',
+            on_time: 'success'
+        };
+        return colors[status] || 'default';
+    };
+
+    const getStatusLabel = (status: string): string => {
+        const labels: { [key: string]: string } = {
+            pending: 'Pendiente',
+            paid: 'Pagada',
+            delayed: 'Retrasada',
+            cancelled: 'Cancelada',
+            on_time: 'A tiempo'
+        };
+        return labels[status] || status;
+    };
+
+    // Handler tras registrar un pago: actualiza la lista y el invoice seleccionado
+    const handlePaymentRegistered = (updatedInvoice: Invoice) => {
+        const updatedInvoices = invoices.map(inv =>
+            inv.id === updatedInvoice.id ? updatedInvoice : inv
+        );
+        setInvoices(updatedInvoices);
+        setSelectedInvoice(updatedInvoice);
+        if (onInvoicesChange) {
+            onInvoicesChange();
+        }
+    };
+
+    return (
+        <Box>
+            <Typography variant="h5" sx={{ color: '#E31C79', mb: 3 }}>
+                {title}
+            </Typography>
+            <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
+                <Grid container spacing={2} alignItems="center">
+                    <Grid item xs={12} sm={6} md={2}>
+                        <FormControl fullWidth size="small" variant="outlined">
+                            <InputLabel id="filter-status-label">Estado</InputLabel>
+                            <Select
+                                labelId="filter-status-label"
+                                label="Estado"
+                                value={statusFilter}
+                                onChange={(e: SelectChangeEvent) => setStatusFilter(e.target.value)}
+                            >
+                                <MenuItem value="">Todos</MenuItem>
+                                <MenuItem value="pending">Pendiente</MenuItem>
+                                <MenuItem value="on_time">A tiempo</MenuItem>
+                                <MenuItem value="paid">Pagada</MenuItem>
+                                <MenuItem value="delayed">Retrasada</MenuItem>
+                                <MenuItem value="cancelled">Cancelada</MenuItem>
+                            </Select>
+                        </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={2}>
+                        <FormControl fullWidth size="small" variant="outlined">
+                            <InputLabel id="filter-type-label">Tipo</InputLabel>
+                            <Select
+                                labelId="filter-type-label"
+                                label="Tipo"
+                                value={typeFilter}
+                                onChange={(e: SelectChangeEvent) => setTypeFilter(e.target.value)}
+                            >
+                                <MenuItem value="">Todos</MenuItem>
+                                <MenuItem value="cash">Contado</MenuItem>
+                                <MenuItem value="credit">Crédito</MenuItem>
+                            </Select>
+                        </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={2}>
+                        <FormControl fullWidth size="small" variant="outlined">
+                            <InputLabel id="filter-user-label">Usuario</InputLabel>
+                            <Select
+                                labelId="filter-user-label"
+                                label="Usuario"
+                                value={userFilter}
+                                onChange={(e: SelectChangeEvent) => setUserFilter(e.target.value)}
+                            >
+                                <MenuItem value="">Todos</MenuItem>
+                                {clientOptions.map(name => (
+                                    <MenuItem key={name} value={name}>{name}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={2}>
+                        <TextField fullWidth size="small" label="Desde" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} InputLabelProps={{ shrink: true }} />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={2}>
+                        <TextField fullWidth size="small" label="Hasta" type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} InputLabelProps={{ shrink: true }} />
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={2}>
+                        <Button fullWidth variant="outlined" onClick={clearFilters}>Limpiar</Button>
+                    </Grid>
+                </Grid>
+            </Paper>
+            <TableContainer component={Paper}>
+                <Table>
+                    <TableHead>
+                        <TableRow>
+                            <TableCell>No. Factura</TableCell>
+                            <TableCell>Fecha</TableCell>
+                            <TableCell>Cliente</TableCell>
+                            <TableCell>Tipo</TableCell>
+                            <TableCell>Estado</TableCell>
+                            <TableCell align="right">Total</TableCell>
+                            <TableCell align="right">Pendiente</TableCell>
+                            <TableCell align="center">Acciones</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {filteredInvoices.map((invoice) => (
+                            <TableRow 
+                                key={invoice.id}
+                                sx={{
+                                    '&:hover': {
+                                        backgroundColor: 'rgba(227, 28, 121, 0.04)',
+                                    }
+                                }}
+                            >
+                                <TableCell>{invoice.invoiceNumber}</TableCell>
+                                <TableCell>
+                                    {new Date(invoice.date).toLocaleDateString()}
+                                </TableCell>
+                                <TableCell>{invoice.clientName}</TableCell>
+                                <TableCell>
+                                    {invoice.paymentType === 'credit' ? 'Crédito' : 'Contado'}
+                                </TableCell>
+                                <TableCell>
+                                    {isAdmin ? (
+                                        <FormControl size="small" sx={{ minWidth: 120 }}>
+                                            <Select
+                                                value={invoice.status}
+                                                onChange={(e: SelectChangeEvent) => handleStatusChange(invoice.id, e.target.value)}
+                                                sx={{
+                                                    backgroundColor: `${getStatusColor(invoice.status)}.light`,
+                                                    '& .MuiSelect-select': {
+                                                        py: 0.5,
+                                                    }
+                                                }}
+                                            >
+                                                {(invoice.status === 'pending' || 
+                                                  invoice.status === 'delayed' || 
+                                                  invoice.status === 'on_time') && (
+                                                    <MenuItem value={invoice.status} disabled>
+                                                        {getStatusLabel(invoice.status)}
+                                                    </MenuItem>
+                                                )}
+                                                <MenuItem value="paid">Pagada</MenuItem>
+                                                <MenuItem value="cancelled">Cancelada</MenuItem>
+                                            </Select>
+                                        </FormControl>
+                                    ) : (
+                                        <Chip 
+                                            label={getStatusLabel(invoice.status)}
+                                            color={getStatusColor(invoice.status)}
+                                            size="small"
+                                        />
+                                    )}
+                                </TableCell>
+                                <TableCell align="right">
+                                    RD$ {invoice.total.toFixed(2)}
+                                </TableCell>
+                                <TableCell align="right">
+                                    RD$ {invoice.remainingAmount.toFixed(2)}
+                                </TableCell>
+                                <TableCell align="center">
+                                    <IconButton
+                                        onClick={() => handleOpenModal(invoice)}
+                                        sx={{ color: '#E31C79' }}
+                                        size="small"
+                                    >
+                                        <VisibilityIcon fontSize="small" />
+                                    </IconButton>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </TableContainer>
+
+            <PaymentDetailsModal
+                open={selectedInvoice !== null}
+                onClose={handleCloseModal}
+                invoice={selectedInvoice}
+                onStatusChange={onInvoicesChange}
+                onPaymentRegistered={handlePaymentRegistered}
+            />
+
+            <Dialog
+                open={confirmDialog.open}
+                onClose={handleCloseConfirmDialog}
+                aria-labelledby="alert-dialog-title"
+                aria-describedby="alert-dialog-description"
+            >
+                <DialogTitle id="alert-dialog-title">
+                    {"¿Confirmar cambio de estado?"}
+                </DialogTitle>
+                <DialogContent>
+                    <Alert severity="warning" sx={{ mb: 2 }}>
+                        Una vez cambiado el estado, no podrá volver a establecerlo como pendiente.
+                    </Alert>
+                    <Typography>
+                        ¿Está seguro que desea cambiar el estado de la factura de{' '}
+                        <strong>{getStatusLabel(confirmDialog.currentStatus)}</strong> a{' '}
+                        <strong>{getStatusLabel(confirmDialog.newStatus)}</strong>?
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button 
+                        onClick={handleCloseConfirmDialog}
+                        sx={{ color: '#666' }}
+                    >
+                        Cancelar
+                    </Button>
+                    <Button 
+                        onClick={handleConfirmStatusChange}
+                        variant="contained"
+                        sx={{
+                            backgroundColor: '#E31C79',
+                            '&:hover': {
+                                backgroundColor: '#C4156A',
+                            },
+                        }}
+                        autoFocus
+                    >
+                        Confirmar
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        </Box>
+    );
+}; 
