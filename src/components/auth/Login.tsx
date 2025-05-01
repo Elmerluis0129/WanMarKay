@@ -49,7 +49,7 @@ export const Login: React.FC = () => {
                     }}
                 >
                     <Typography component="h1" variant="h5" sx={{ color: '#E31C79' }}>
-                        Mary Kay - Iniciar Sesión
+                        WanMarKay - Iniciar Sesión
                     </Typography>
                     <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
                         <TextField

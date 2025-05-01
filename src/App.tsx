@@ -5,6 +5,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { es } from 'date-fns/locale';
 import { AppRoutes } from './routes/AppRoutes';
+import { Footer } from './components/shared/Footer';
 
 const theme = createTheme({
   palette: {
@@ -38,6 +39,7 @@ function App() {
         <Router>
           <AppRoutes />
         </Router>
+        <Footer />
       </LocalizationProvider>
     </ThemeProvider>
   );

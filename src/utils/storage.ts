@@ -1,5 +1,6 @@
 import { User } from '../types/user';
 import { Invoice } from '../types/invoice';
+import { v4 as uuidv4 } from 'uuid';
 
 const USERS_KEY = 'mk_users';
 const INVOICES_KEY = 'mk_invoices';
@@ -7,8 +8,39 @@ const INVOICES_KEY = 'mk_invoices';
 export const storage = {
     // Usuarios
     getUsers: (): User[] => {
-        const users = localStorage.getItem(USERS_KEY);
-        return users ? JSON.parse(users) : [];
+        const data = localStorage.getItem(USERS_KEY);
+        let users: any[] = data ? JSON.parse(data) : [];
+        let migrated = false;
+        // Migrar usuarios que aún tengan propiedad 'email' al nuevo campo 'username'
+        users = users.map(u => {
+            if (!u.username && u.email) {
+                migrated = true;
+                return {
+                    id: u.id,
+                    username: u.email,
+                    fullName: u.fullName,
+                    password: u.password,
+                    role: u.role,
+                } as User;
+            }
+            return u;
+        });
+        if (migrated) {
+            localStorage.setItem(USERS_KEY, JSON.stringify(users));
+        }
+        // Sembrar admin por defecto si no existe
+        if (!users.some(u => u.role === 'admin')) {
+            const defaultAdmin: User = {
+                id: uuidv4(),
+                username: 'admin',
+                fullName: 'Administrador',
+                password: 'admin123',
+                role: 'admin'
+            };
+            users.unshift(defaultAdmin);
+            localStorage.setItem(USERS_KEY, JSON.stringify(users));
+        }
+        return users as User[];
     },
 
     saveUsers: (users: User[]): void => {

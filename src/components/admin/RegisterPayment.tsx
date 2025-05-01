@@ -138,94 +138,99 @@ export const RegisterPayment: React.FC = () => {
                     <Typography variant="h5" sx={{ color: '#E31C79', mb: 3 }}>
                         Registrar Pago
                     </Typography>
-                    <Box component="form" onSubmit={handlePaymentSubmit}>
-                        <Grid container spacing={2}>
-                            {/* Selector de factura */}
-                            <Grid item xs={12}>
-                                <Autocomplete
-                                    value={selectedInvoice}
-                                    onChange={(_, newValue) => {
-                                        setSelectedInvoice(newValue);
-                                        setAmount('');
-                                    }}
-                                    options={invoices}
-                                    getOptionLabel={inv => `#${inv.invoiceNumber} - ${inv.clientName}`}
-                                    isOptionEqualToValue={(opt, val) => opt.id === val.id}
-                                    renderInput={params => (
-                                        <TextField
-                                            {...params}
-                                            label="Seleccionar Factura"
-                                            fullWidth
-                                            required
-                                        />
-                                    )}
-                                />
-                            </Grid>
-                            {selectedInvoice && (
-                                <> 
-                                    {/* Montos */}
-                                    <Grid item xs={12} md={6}>
-                                        <TextField
-                                            fullWidth
-                                            label="Monto Total"
-                                            value={`RD$ ${selectedInvoice.total.toFixed(2)}`}
-                                            InputProps={{ readOnly: true }}
-                                        />
-                                    </Grid>
-                                    <Grid item xs={12} md={6}>
-                                        <TextField
-                                            fullWidth
-                                            label="Saldo Pendiente"
-                                            value={`RD$ ${selectedInvoice.remainingAmount.toFixed(2)}`}
-                                            InputProps={{ readOnly: true }}
-                                        />
-                                    </Grid>
-                                    {/* Monto a pagar */}
-                                    <Grid item xs={12} md={6}>
-                                        <TextField
-                                            fullWidth
-                                            label="Monto a Pagar"
-                                            type="number"
-                                            value={amount}
-                                            onChange={e => setAmount(e.target.value)}
-                                            inputProps={{ min: 0, max: selectedInvoice.remainingAmount, step: 0.01 }}
-                                            required
-                                        />
-                                    </Grid>
-                                    {/* Fecha de Pago */}
-                                    <Grid item xs={12} md={6}>
-                                        <TextField
-                                            fullWidth
-                                            label="Fecha de Pago"
-                                            type="date"
-                                            value={paymentDate ? paymentDate.toISOString().split('T')[0] : ''}
-                                            onChange={e => setPaymentDate(new Date(e.target.value))}
-                                            InputLabelProps={{ shrink: true }}
-                                            required
-                                        />
-                                    </Grid>
-                                </>
-                            )}
-                            {/* Mensaje */}
-                            {message.text && (
+                    {/* Si no hay facturas disponibles, mostrar alerta y no mostrar el formulario */}
+                    {invoices.length === 0 ? (
+                        <Alert severity="info">Debe crear al menos una factura primero para registrar un pago.</Alert>
+                    ) : (
+                        <Box component="form" onSubmit={handlePaymentSubmit}>
+                            <Grid container spacing={2}>
+                                {/* Selector de factura */}
                                 <Grid item xs={12}>
-                                    <Alert severity={message.isError ? 'error' : 'success'}>
-                                        {message.text}
-                                    </Alert>
+                                    <Autocomplete
+                                        value={selectedInvoice}
+                                        onChange={(_, newValue) => {
+                                            setSelectedInvoice(newValue);
+                                            setAmount('');
+                                        }}
+                                        options={invoices}
+                                        getOptionLabel={inv => `#${inv.invoiceNumber} - ${inv.clientName}`}
+                                        isOptionEqualToValue={(opt, val) => opt.id === val.id}
+                                        renderInput={params => (
+                                            <TextField
+                                                {...params}
+                                                label="Seleccionar Factura"
+                                                fullWidth
+                                                required
+                                            />
+                                        )}
+                                    />
                                 </Grid>
-                            )}
-                            {/* Botón Registrar */}
-                            <Grid item xs={12}>
-                                <Button
-                                    type="submit"
-                                    variant="contained"
-                                    fullWidth
-                                    disabled={!selectedInvoice || !amount || !paymentDate}
-                                    sx={{ bgcolor: '#E31C79', '&:hover': { bgcolor: '#C4156A' } }}
-                                >Registrar Pago</Button>
+                                {selectedInvoice && (
+                                    <> 
+                                        {/* Montos */}
+                                        <Grid item xs={12} md={6}>
+                                            <TextField
+                                                fullWidth
+                                                label="Monto Total"
+                                                value={`RD$ ${selectedInvoice.total.toFixed(2)}`}
+                                                InputProps={{ readOnly: true }}
+                                            />
+                                        </Grid>
+                                        <Grid item xs={12} md={6}>
+                                            <TextField
+                                                fullWidth
+                                                label="Saldo Pendiente"
+                                                value={`RD$ ${selectedInvoice.remainingAmount.toFixed(2)}`}
+                                                InputProps={{ readOnly: true }}
+                                            />
+                                        </Grid>
+                                        {/* Monto a pagar */}
+                                        <Grid item xs={12} md={6}>
+                                            <TextField
+                                                fullWidth
+                                                label="Monto a Pagar"
+                                                type="number"
+                                                value={amount}
+                                                onChange={e => setAmount(e.target.value)}
+                                                inputProps={{ min: 0, max: selectedInvoice.remainingAmount, step: 0.01 }}
+                                                required
+                                            />
+                                        </Grid>
+                                        {/* Fecha de Pago */}
+                                        <Grid item xs={12} md={6}>
+                                            <TextField
+                                                fullWidth
+                                                label="Fecha de Pago"
+                                                type="date"
+                                                value={paymentDate ? paymentDate.toISOString().split('T')[0] : ''}
+                                                onChange={e => setPaymentDate(new Date(e.target.value))}
+                                                InputLabelProps={{ shrink: true }}
+                                                required
+                                            />
+                                        </Grid>
+                                    </>
+                                )}
+                                {/* Mensaje */}
+                                {message.text && (
+                                    <Grid item xs={12}>
+                                        <Alert severity={message.isError ? 'error' : 'success'}>
+                                            {message.text}
+                                        </Alert>
+                                    </Grid>
+                                )}
+                                {/* Botón Registrar */}
+                                <Grid item xs={12}>
+                                    <Button
+                                        type="submit"
+                                        variant="contained"
+                                        fullWidth
+                                        disabled={!selectedInvoice || !amount || !paymentDate}
+                                        sx={{ bgcolor: '#E31C79', '&:hover': { bgcolor: '#C4156A' } }}
+                                    >Registrar Pago</Button>
+                                </Grid>
                             </Grid>
-                        </Grid>
-                    </Box>
+                        </Box>
+                    )}
                 </Paper>
             </Container>
         </>

@@ -268,7 +268,7 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
                             >
                                 <TableCell>{invoice.invoiceNumber}</TableCell>
                                 <TableCell>
-                                    {new Date(invoice.date).toLocaleDateString()}
+                                    {invoice.date}
                                 </TableCell>
                                 <TableCell>{invoice.clientName}</TableCell>
                                 <TableCell>

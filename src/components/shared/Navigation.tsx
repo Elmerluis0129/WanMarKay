@@ -18,7 +18,7 @@ interface NavigationProps {
     title?: string;
 }
 
-export const Navigation: React.FC<NavigationProps> = ({ title = 'Sistema de Facturas Mary Kay' }) => {
+export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) => {
     const navigate = useNavigate();
     const isAdmin = auth.isAdmin();
 

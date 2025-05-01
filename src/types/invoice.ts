@@ -26,6 +26,7 @@ export interface Payment {
     method?: 'cash' | 'transfer' | 'check';
     createdAt?: string;
     createdBy?: string;
+    attachment?: string;
 }
 
 export interface Invoice {
@@ -45,7 +46,6 @@ export interface Invoice {
         total: number;
     }[];
     subtotal: number;
-    itbis: number;
     total: number;
     remainingAmount: number;
     status: 'pending' | 'paid' | 'delayed' | 'cancelled' | 'on_time';

@@ -20,7 +20,7 @@ import { Navigation } from '../shared/Navigation';
 export const CreateUser: React.FC = () => {
     const [formData, setFormData] = useState({
         fullName: '',
-        email: '',
+        username: '',
         password: '',
         role: 'client' as UserRole,
     });
@@ -53,7 +53,7 @@ export const CreateUser: React.FC = () => {
             setMessage({ text: 'Usuario creado exitosamente', isError: false });
             setFormData({
                 fullName: '',
-                email: '',
+                username: '',
                 password: '',
                 role: 'client',
             });
@@ -100,10 +100,10 @@ export const CreateUser: React.FC = () => {
                                 margin="normal"
                                 required
                                 fullWidth
-                                name="email"
-                                label="Correo Electrónico"
-                                type="email"
-                                value={formData.email}
+                                name="username"
+                                label="Usuario"
+                                type="text"
+                                value={formData.username}
                                 onChange={handleChange}
                             />
                             <TextField

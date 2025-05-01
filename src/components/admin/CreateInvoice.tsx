@@ -24,6 +24,10 @@ import {
     Autocomplete,
     Alert,
     Grid,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
@@ -35,6 +39,7 @@ import { auth } from '../../services/auth';
 import { Navigation } from '../shared/Navigation';
 import match from 'autosuggest-highlight/match';
 import parse from 'autosuggest-highlight/parse';
+import InputMask from 'react-input-mask';
 
 export const CreateInvoice: React.FC = () => {
     const [formData, setFormData] = useState({
@@ -70,6 +75,10 @@ export const CreateInvoice: React.FC = () => {
     // Estado para imagen adjunta y su preview
     const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
     const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
+
+    // Estado para diálogo de confirmación si no hay imagen
+    const [openNoImageDialog, setOpenNoImageDialog] = useState<boolean>(false);
+    const [skipNoImageConfirm, setSkipNoImageConfirm] = useState<boolean>(false);
 
     // Handler para el input file
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -149,119 +158,58 @@ export const CreateInvoice: React.FC = () => {
 
     const calculateTotal = () => {
         const subtotal = items.reduce((sum, item) => sum + item.total, 0);
-        const itbis = subtotal * 0.18;
         return {
             subtotal,
-            itbis,
-            total: subtotal + itbis,
+            total: subtotal,
         };
+    };
+
+    const saveInvoice = () => {
+        const { subtotal } = calculateTotal();
+        const total = subtotal;
+        const currentUser = auth.getCurrentUser();
+        const startDate = new Date(paymentPlan.startDate || new Date());
+        let nextPaymentDate = new Date(startDate);
+        switch (paymentPlan.frequency) {
+            case 'weekly': nextPaymentDate.setDate(startDate.getDate() + 7); break;
+            case 'biweekly': nextPaymentDate.setDate(startDate.getDate() + 14); break;
+            case 'monthly': nextPaymentDate.setMonth(startDate.getMonth() + 1); break;
+            default: nextPaymentDate.setMonth(startDate.getMonth() + 1);
+        }
+        const today = new Date();
+        const diffDays = Math.ceil((nextPaymentDate.getTime() - today.getTime())/(1000*60*60*24));
+        const initialStatus = diffDays < 0 ? 'delayed' : 'pending';
+        const newInvoice: Invoice = {
+            id: uuidv4(), invoiceNumber: formData.invoiceNumber, date: formData.date,
+            clientName: selectedClient!, clientId: currentUser!.id,
+            address: formData.address || undefined, cedula: formData.cedula || undefined,
+            phone: formData.phone || undefined,
+            ...(attachmentPreview && { attachment: attachmentPreview }), items, subtotal, total,
+            remainingAmount: total, status: initialStatus, paymentType, payments: [],
+            ...(paymentType === 'credit' && { paymentPlan: { ...paymentPlan, paidInstallments: 0, startDate: startDate.toISOString(), nextPaymentDate: nextPaymentDate.toISOString() } as PaymentPlan })
+        };
+        storage.addInvoice(newInvoice);
+        setMessage({ text: 'Factura creada exitosamente', isError: false });
+        // reset form
+        setFormData({ invoiceNumber:'', clientName:'', address:'', cedula:'', phone:'', date:new Date().toISOString().split('T')[0] });
+        setSelectedClient(null); setItems([]); setPaymentType('cash');
+        setPaymentPlan({ frequency:'monthly', totalInstallments:1, installmentAmount:0, startDate:new Date().toISOString().split('T')[0]});
+        setAttachmentFile(null); setAttachmentPreview(null);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
-        if (items.length === 0) {
-            setMessage({ text: 'Debe agregar al menos un producto', isError: true });
-            return;
-        }
-
-        if (!formData.invoiceNumber) {
-            setMessage({ text: 'El número de factura es obligatorio', isError: true });
-            return;
-        }
-
-        if (!selectedClient) {
-            setMessage({ text: 'Por favor seleccione un cliente', isError: true });
-            return;
-        }
-
-        const { subtotal, itbis } = calculateTotal();
-        const total = subtotal;
-        const currentUser = auth.getCurrentUser();
-
-        if (!currentUser) {
-            setMessage({ text: 'Error: Usuario no autenticado', isError: true });
-            return;
-        }
-
-        const startDate = new Date(paymentPlan.startDate || new Date());
-        let nextPaymentDate = new Date(startDate);
-        
-        // Calcular próxima fecha de pago según frecuencia
-        switch (paymentPlan.frequency) {
-            case 'weekly':
-                nextPaymentDate.setDate(startDate.getDate() + 7);
-                break;
-            case 'biweekly':
-                nextPaymentDate.setDate(startDate.getDate() + 14);
-                break;
-            case 'monthly':
-                nextPaymentDate.setMonth(startDate.getMonth() + 1);
-                break;
-            default:
-                nextPaymentDate.setMonth(startDate.getMonth() + 1);
-        }
-
-        // Verificar si la fecha de pago ya pasó
-        const today = new Date();
-        const diffTime = nextPaymentDate.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        const initialStatus = diffDays < 0 ? 'delayed' : 'pending';
-
-        const newInvoice: Invoice = {
-            id: uuidv4(),
-            invoiceNumber: formData.invoiceNumber,
-            date: formData.date,
-            clientName: selectedClient,
-            clientId: currentUser?.id,
-            address: formData.address || undefined,
-            cedula: formData.cedula || undefined,
-            phone: formData.phone || undefined,
-            ...(attachmentPreview && { attachment: attachmentPreview }),
-            items,
-            subtotal,
-            itbis,
-            total,
-            remainingAmount: total,
-            status: initialStatus,
-            paymentType,
-            payments: [],
-            ...(paymentType === 'credit' && {
-                paymentPlan: {
-                    ...paymentPlan,
-                    paidInstallments: 0,
-                    startDate: startDate.toISOString(),
-                    nextPaymentDate: nextPaymentDate.toISOString(),
-                } as PaymentPlan
-            })
-        };
-
-        try {
-            storage.addInvoice(newInvoice);
-            setMessage({ text: 'Factura creada exitosamente', isError: false });
-            setFormData({
-                invoiceNumber: '',
-                clientName: '',
-                address: '',
-                cedula: '',
-                phone: '',
-                date: new Date().toISOString().split('T')[0],
-            });
-            setSelectedClient(null);
-            setItems([]);
-            setPaymentType('cash');
-            setPaymentPlan({
-                frequency: 'monthly',
-                totalInstallments: 1,
-                installmentAmount: 0,
-                startDate: new Date().toISOString().split('T')[0],
-            });
-        } catch (error) {
-            setMessage({ text: 'Error al crear la factura', isError: true });
-        }
+        if (items.length === 0) { setMessage({ text:'Debe agregar al menos un producto', isError:true }); return; }
+        if (!formData.invoiceNumber) { setMessage({ text:'El número de factura es obligatorio', isError:true }); return; }
+        if (!selectedClient) { setMessage({ text:'Por favor seleccione un cliente', isError:true }); return; }
+        if (!skipNoImageConfirm && !attachmentPreview) { setOpenNoImageDialog(true); return; }
+        saveInvoice();
+        setSkipNoImageConfirm(false);
     };
 
     const totals = calculateTotal();
+
+    const confirmWithoutImage = () => { setSkipNoImageConfirm(true); setOpenNoImageDialog(false); };
 
     return (
         <>
@@ -309,15 +257,25 @@ export const CreateInvoice: React.FC = () => {
                                     />
                                 </Grid>
                                 <Grid item xs={12} md={3}>
-                                    <TextField
-                                        fullWidth
-                                        label="Teléfono"
-                                        name="phone"
+                                    <InputMask
+                                        mask="+1 (999) 999-9999"
                                         value={formData.phone}
                                         onChange={handleChange}
-                                    />
+                                        maskChar="_"
+                                    >
+                                        {(maskProps: any) => (
+                                            <TextField
+                                                {...maskProps}
+                                                fullWidth
+                                                label="Teléfono"
+                                                name="phone"
+                                                required
+                                            />
+                                        )}
+                                    </InputMask>
                                 </Grid>
                             </Grid>
+
                             <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
                                 <FormControl fullWidth>
                                     <Autocomplete
@@ -581,6 +539,20 @@ export const CreateInvoice: React.FC = () => {
                     </Paper>
                 </Box>
             </Container>
+            <Dialog open={openNoImageDialog} onClose={() => setOpenNoImageDialog(false)}>
+                <DialogTitle>¿Crear factura sin imagen?</DialogTitle>
+                <DialogContent>
+                    <Typography>
+                        No ha subido una imagen de la factura. ¿Está seguro que desea continuar sin imagen?
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setOpenNoImageDialog(false)}>Cancelar</Button>
+                    <Button variant="contained" onClick={confirmWithoutImage}>
+                        Agregar después. No tengo factura física
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </>
     );
 }; 

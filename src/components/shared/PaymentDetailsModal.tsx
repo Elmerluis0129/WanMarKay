@@ -20,7 +20,8 @@ import {
     DialogTitle,
     DialogContent,
     DialogActions,
-    Alert
+    Alert,
+    TextField
 } from '@mui/material';
 import { Invoice, Payment } from '../../types/invoice';
 import { auth } from '../../services/auth';
@@ -54,14 +55,39 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
         newStatus: ''
     });
     const [paymentDialog, setPaymentDialog] = useState<{ open: boolean }>({ open: false });
+    const [isEditing, setIsEditing] = useState<boolean>(false);
+    const [editedInvoice, setEditedInvoice] = useState<Invoice | null>(null);
+    const [imageDialogOpen, setImageDialogOpen] = useState<boolean>(false);
+    const [paymentAttachmentFile, setPaymentAttachmentFile] = useState<File | null>(null);
+    const [paymentAttachmentPreview, setPaymentAttachmentPreview] = useState<string | null>(null);
+    const [invoiceAttachmentFile, setInvoiceAttachmentFile] = useState<File | null>(null);
+    const [invoiceAttachmentPreview, setInvoiceAttachmentPreview] = useState<string | null>(null);
     const isAdmin = auth.getCurrentUser()?.role === 'admin';
 
-    // Actualizar el estado seleccionado cuando cambia la factura
+    useEffect(() => {
+        if (invoice) {
+            setSelectedStatus(invoice.status);
+            setEditedInvoice(invoice);
+            setIsEditing(false);
+            setInvoiceAttachmentPreview(invoice.attachment || null);
+        }
+    }, [invoice]);
+
     useEffect(() => {
         if (invoice) {
             setSelectedStatus(invoice.status);
         }
     }, [invoice]);
+
+    const handleSaveEdit = () => {
+        if (!editedInvoice) return;
+        if (invoiceAttachmentPreview) {
+            editedInvoice.attachment = invoiceAttachmentPreview;
+        }
+        storage.updateInvoice(editedInvoice);
+        if (onPaymentRegistered) onPaymentRegistered(editedInvoice);
+        setIsEditing(false);
+    };
 
     if (!invoice) return null;
 
@@ -124,6 +150,16 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
     const handleOpenPaymentDialog = () => setPaymentDialog({ open: true });
     const handleClosePaymentDialog = () => setPaymentDialog({ open: false });
 
+    const handlePaymentFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setPaymentAttachmentFile(file);
+            const reader = new FileReader();
+            reader.onload = () => setPaymentAttachmentPreview(reader.result as string);
+            reader.readAsDataURL(file);
+        }
+    };
+
     // Función para registrar el pago de la siguiente cuota
     const registerPayment = () => {
         if (!invoice.paymentPlan) return;
@@ -162,6 +198,11 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
         if (onPaymentRegistered) onPaymentRegistered(updatedInvoice);
         if (onStatusChange) onStatusChange();
         setPaymentDialog({ open: false });
+
+        // Si existe una imagen seleccionada, añadimos el attachment al pago
+        if (paymentAttachmentPreview) {
+            newPayment.attachment = paymentAttachmentPreview;
+        }
     };
 
     return (
@@ -184,43 +225,96 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                     maxHeight: '90vh',
                     overflow: 'auto'
                 }}>
-                    <Typography variant="h6" component="h2" sx={{ mb: 2 }}>
-                        Detalles de Pago - Factura #{invoice?.invoiceNumber}
-                    </Typography>
-
-                    <Box sx={{ mb: 3 }}>
-                        <Typography variant="subtitle1" gutterBottom>
-                            Estado: 
-                            {isAdmin ? (
-                                <FormControl sx={{ ml: 2, minWidth: 120 }}>
-                                    <Select
-                                        value={selectedStatus}
-                                        onChange={handleStatusChange}
-                                        size="small"
-                                    >
-                                        {(selectedStatus === 'pending' || 
-                                          selectedStatus === 'delayed' || 
-                                          selectedStatus === 'on_time') && (
-                                            <MenuItem value={selectedStatus} disabled>
-                                                {getStatusLabel(selectedStatus)}
-                                            </MenuItem>
-                                        )}
-                                        <MenuItem value="paid">Pagada</MenuItem>
-                                        <MenuItem value="cancelled">Cancelada</MenuItem>
-                                    </Select>
-                                </FormControl>
-                            ) : (
-                                <Chip 
-                                    label={getStatusLabel(invoice.status)}
-                                    color={getStatusColor(invoice.status)}
-                                    sx={{ ml: 1 }}
-                                />
-                            )}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Typography variant="h6" component="h2">
+                            Detalles de Pago - Factura #{invoice?.invoiceNumber}
                         </Typography>
-                        <Typography>Cliente: {invoice.clientName}</Typography>
-                        <Typography>Monto Total: RD$ {invoice.total.toFixed(2)}</Typography>
-                        <Typography>Monto Pendiente: RD$ {invoice.remainingAmount.toFixed(2)}</Typography>
+                        {isAdmin && (
+                            isEditing ? (
+                                <Box>
+                                    <Button variant="contained" color="primary" onClick={handleSaveEdit} sx={{ mr:1 }}>Guardar</Button>
+                                    <Button variant="outlined" onClick={() => setIsEditing(false)}>Cancelar</Button>
+                                </Box>
+                            ) : (
+                                <Button variant="outlined" onClick={() => setIsEditing(true)}>Editar</Button>
+                            )
+                        )}
                     </Box>
+
+                    {isEditing && editedInvoice ? (
+                        <Box component="form" noValidate>
+                            <TextField fullWidth label="No. Factura" value={editedInvoice.invoiceNumber} onChange={e => setEditedInvoice({...editedInvoice, invoiceNumber: e.target.value})} sx={{ mb:2 }} />
+                            <TextField fullWidth type="date" label="Fecha" value={editedInvoice.date} onChange={e => setEditedInvoice({...editedInvoice, date: e.target.value})} InputLabelProps={{ shrink: true }} sx={{ mb:2 }} />
+                            <TextField fullWidth label="Cliente" value={editedInvoice.clientName} onChange={e => setEditedInvoice({...editedInvoice, clientName: e.target.value})} sx={{ mb:2 }} />
+                            <TextField fullWidth label="Dirección" value={editedInvoice.address||''} onChange={e => setEditedInvoice({...editedInvoice, address: e.target.value||undefined})} sx={{ mb:2 }} />
+                            <TextField fullWidth label="Cédula" value={editedInvoice.cedula||''} onChange={e => setEditedInvoice({...editedInvoice, cedula: e.target.value||undefined})} sx={{ mb:2 }} />
+                            <TextField fullWidth label="Teléfono" value={editedInvoice.phone||''} onChange={e => setEditedInvoice({...editedInvoice, phone: e.target.value||undefined})} sx={{ mb:2 }} />
+                            <Box sx={{ mb:2 }}>
+                                <Button variant="contained" component="label" sx={{ backgroundColor: '#E31C79', '&:hover': { backgroundColor: '#C4156A' } }}>
+                                    Subir Imagen de Factura
+                                    <input type="file" hidden accept="image/*" onChange={e => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            setInvoiceAttachmentFile(file);
+                                            const reader = new FileReader();
+                                            reader.onload = () => setInvoiceAttachmentPreview(reader.result as string);
+                                            reader.readAsDataURL(file);
+                                        }
+                                    }} />
+                                </Button>
+                                {invoiceAttachmentPreview && (
+                                    <Box component="img" src={invoiceAttachmentPreview} alt="Previsualización" sx={{ mt:2, maxWidth:'100%', maxHeight:200 }} />
+                                )}
+                            </Box>
+                        </Box>
+                    ) : (
+                        <>
+                            <Typography variant="subtitle1" gutterBottom>
+                                Estado: 
+                                {isAdmin ? (
+                                    <FormControl sx={{ ml: 2, minWidth: 120 }}>
+                                        <Select
+                                            value={selectedStatus}
+                                            onChange={handleStatusChange}
+                                            size="small"
+                                        >
+                                            {(selectedStatus === 'pending' || 
+                                              selectedStatus === 'delayed' || 
+                                              selectedStatus === 'on_time') && (
+                                                <MenuItem value={selectedStatus} disabled>
+                                                    {getStatusLabel(selectedStatus)}
+                                                </MenuItem>
+                                            )}
+                                            <MenuItem value="paid">Pagada</MenuItem>
+                                            <MenuItem value="cancelled">Cancelada</MenuItem>
+                                        </Select>
+                                    </FormControl>
+                                ) : (
+                                    <Chip 
+                                        label={getStatusLabel(invoice.status)}
+                                        color={getStatusColor(invoice.status)}
+                                        sx={{ ml: 1 }}
+                                    />
+                                )}
+                            </Typography>
+                            <Typography>Cliente: {invoice.clientName}</Typography>
+                            <Typography>Fecha: {invoice.date}</Typography>
+                            {invoice.address && <Typography>Dirección: {invoice.address}</Typography>}
+                            {invoice.cedula && <Typography>Cédula: {invoice.cedula}</Typography>}
+                            {invoice.phone && <Typography>Teléfono: {invoice.phone}</Typography>}
+                        </>
+                    )}
+                    <Typography>Monto Total: RD$ {invoice.total.toFixed(2)}</Typography>
+                    <Typography>Monto Pendiente: RD$ {invoice.remainingAmount.toFixed(2)}</Typography>
+                    {invoice.attachment && (
+                        <Box
+                            component="img"
+                            src={invoice.attachment}
+                            alt="Imagen Factura"
+                            sx={{ mt: 2, maxWidth: '100%', maxHeight: 200, cursor: 'zoom-in' }}
+                            onClick={() => setImageDialogOpen(true)}
+                        />
+                    )}
 
                     {invoice.paymentType === 'credit' && invoice.paymentPlan && (
                         <Box sx={{ mb: 3 }}>
@@ -340,23 +434,52 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                 </DialogActions>
             </Dialog>
 
-            <Dialog open={paymentDialog.open} onClose={handleClosePaymentDialog}>
-                <DialogTitle>Confirmar Pago</DialogTitle>
-                <DialogContent>
-                    <Typography>
-                        ¿Deseas registrar el pago de la cuota {invoice.paymentPlan!.paidInstallments + 1} por RD$ {invoice.paymentPlan!.installmentAmount.toFixed(2)}?
-                    </Typography>
+            {invoice.paymentPlan && (
+                <Dialog open={paymentDialog.open} onClose={handleClosePaymentDialog}>
+                    <DialogTitle>Confirmar Pago</DialogTitle>
+                    <DialogContent>
+                        <Typography>
+                            ¿Deseas registrar el pago de la cuota {invoice.paymentPlan.paidInstallments + 1} por RD$ {invoice.paymentPlan.installmentAmount.toFixed(2)}?
+                        </Typography>
+                        <Box sx={{ mt: 2 }}>
+                            <Button variant="contained" component="label" sx={{ backgroundColor: '#E31C79', '&:hover': { backgroundColor: '#C4156A' } }}>
+                                Subir Comprobante de Pago
+                                <input type="file" hidden accept="image/*" onChange={handlePaymentFileChange} />
+                            </Button>
+                            {paymentAttachmentPreview && (
+                                <Box component="img" src={paymentAttachmentPreview} alt="Comprobante" sx={{ mt: 2, maxWidth: '100%', maxHeight: 200 }} />
+                            )}
+                        </Box>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleClosePaymentDialog}>Cancelar</Button>
+                        <Button
+                            onClick={registerPayment}
+                            variant="contained"
+                            sx={{ backgroundColor: '#E31C79', '&:hover': { backgroundColor: '#C4156A' } }}
+                        >
+                            Confirmar
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+            )}
+
+            {/* Image viewer dialog */}
+            <Dialog
+                open={imageDialogOpen}
+                onClose={() => setImageDialogOpen(false)}
+                maxWidth="lg"
+                PaperProps={{ style: { backgroundColor: 'transparent', boxShadow: 'none' } }}
+            >
+                <DialogContent sx={{ p: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <Box
+                        component="img"
+                        src={invoice.attachment!}
+                        alt="Factura Ampliada"
+                        sx={{ width: '100%', height: 'auto', cursor: 'zoom-out' }}
+                        onClick={() => setImageDialogOpen(false)}
+                    />
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleClosePaymentDialog}>Cancelar</Button>
-                    <Button 
-                        onClick={registerPayment} 
-                        variant="contained" 
-                        sx={{ backgroundColor: '#E31C79', '&:hover': { backgroundColor: '#C4156A' } }}
-                    >
-                        Confirmar
-                    </Button>
-                </DialogActions>
             </Dialog>
         </>
     );
