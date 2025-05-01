@@ -7,7 +7,7 @@ export const auth = {
     login: (credentials: LoginCredentials): User | null => {
         const users = storage.getUsers();
         const user = users.find(
-            u => u.email === credentials.email && u.password === credentials.password
+            u => u.username === credentials.username && u.password === credentials.password
         );
         
         if (user) {

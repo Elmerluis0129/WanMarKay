@@ -23,6 +23,7 @@ import {
     RadioGroup,
     Autocomplete,
     Alert,
+    Grid,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
@@ -37,7 +38,11 @@ import parse from 'autosuggest-highlight/parse';
 
 export const CreateInvoice: React.FC = () => {
     const [formData, setFormData] = useState({
+        invoiceNumber: '',
         clientName: '',
+        address: '',
+        cedula: '',
+        phone: '',
         date: new Date().toISOString().split('T')[0],
     });
 
@@ -61,6 +66,23 @@ export const CreateInvoice: React.FC = () => {
     });
 
     const [message, setMessage] = useState({ text: '', isError: false });
+
+    // Estado para imagen adjunta y su preview
+    const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+    const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
+
+    // Handler para el input file
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setAttachmentFile(file);
+            const reader = new FileReader();
+            reader.onload = () => {
+                setAttachmentPreview(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
     // Cargar la lista de clientes al montar el componente
     useEffect(() => {
@@ -143,12 +165,18 @@ export const CreateInvoice: React.FC = () => {
             return;
         }
 
+        if (!formData.invoiceNumber) {
+            setMessage({ text: 'El número de factura es obligatorio', isError: true });
+            return;
+        }
+
         if (!selectedClient) {
             setMessage({ text: 'Por favor seleccione un cliente', isError: true });
             return;
         }
 
-        const { subtotal, itbis, total } = calculateTotal();
+        const { subtotal, itbis } = calculateTotal();
+        const total = subtotal;
         const currentUser = auth.getCurrentUser();
 
         if (!currentUser) {
@@ -182,9 +210,14 @@ export const CreateInvoice: React.FC = () => {
 
         const newInvoice: Invoice = {
             id: uuidv4(),
-            invoiceNumber: new Date().getTime().toString(),
+            invoiceNumber: formData.invoiceNumber,
             date: formData.date,
             clientName: selectedClient,
+            clientId: currentUser?.id,
+            address: formData.address || undefined,
+            cedula: formData.cedula || undefined,
+            phone: formData.phone || undefined,
+            ...(attachmentPreview && { attachment: attachmentPreview }),
             items,
             subtotal,
             itbis,
@@ -207,7 +240,11 @@ export const CreateInvoice: React.FC = () => {
             storage.addInvoice(newInvoice);
             setMessage({ text: 'Factura creada exitosamente', isError: false });
             setFormData({
+                invoiceNumber: '',
                 clientName: '',
+                address: '',
+                cedula: '',
+                phone: '',
                 date: new Date().toISOString().split('T')[0],
             });
             setSelectedClient(null);
@@ -242,6 +279,45 @@ export const CreateInvoice: React.FC = () => {
                         </Alert>
 
                         <Box component="form" onSubmit={handleSubmit}>
+                            <Grid container spacing={2} sx={{ mb: 3 }}>
+                                <Grid item xs={12} md={3}>
+                                    <TextField
+                                        fullWidth
+                                        label="No. Factura"
+                                        name="invoiceNumber"
+                                        value={formData.invoiceNumber}
+                                        onChange={handleChange}
+                                        required
+                                    />
+                                </Grid>
+                                <Grid item xs={12} md={3}>
+                                    <TextField
+                                        fullWidth
+                                        label="Dirección"
+                                        name="address"
+                                        value={formData.address}
+                                        onChange={handleChange}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} md={3}>
+                                    <TextField
+                                        fullWidth
+                                        label="Cédula"
+                                        name="cedula"
+                                        value={formData.cedula}
+                                        onChange={handleChange}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} md={3}>
+                                    <TextField
+                                        fullWidth
+                                        label="Teléfono"
+                                        name="phone"
+                                        value={formData.phone}
+                                        onChange={handleChange}
+                                    />
+                                </Grid>
+                            </Grid>
                             <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
                                 <FormControl fullWidth>
                                     <Autocomplete
@@ -301,6 +377,27 @@ export const CreateInvoice: React.FC = () => {
                                     InputLabelProps={{ shrink: true }}
                                 />
                             </Box>
+
+                            <Grid container spacing={2} sx={{ mb: 3 }}>
+                                <Grid item xs={12}>
+                                    <Button
+                                        variant="contained"
+                                        component="label"
+                                        sx={{ backgroundColor: '#E31C79', '&:hover': { backgroundColor: '#C4156A' } }}
+                                    >
+                                        Subir Imagen de Factura
+                                        <input type="file" hidden accept="image/*" onChange={handleFileChange} />
+                                    </Button>
+                                    {attachmentPreview && (
+                                        <Box
+                                            component="img"
+                                            src={attachmentPreview}
+                                            alt="Previsualización de factura"
+                                            sx={{ mt: 2, maxWidth: '100%', maxHeight: 200 }}
+                                        />
+                                    )}
+                                </Grid>
+                            </Grid>
 
                             <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
                                 Productos
@@ -451,9 +548,6 @@ export const CreateInvoice: React.FC = () => {
                             <Box sx={{ mt: 3, textAlign: 'right' }}>
                                 <Typography>
                                     Subtotal: RD$ {totals.subtotal.toFixed(2)}
-                                </Typography>
-                                <Typography>
-                                    ITBIS (18%): RD$ {totals.itbis.toFixed(2)}
                                 </Typography>
                                 <Typography variant="h6" sx={{ color: '#E31C79' }}>
                                     Total: RD$ {totals.total.toFixed(2)}

@@ -34,6 +34,10 @@ export interface Invoice {
     date: string;
     clientId?: string;
     clientName: string;
+    address?: string;
+    cedula?: string;
+    phone?: string;
+    attachment?: string;
     items: {
         description: string;
         quantity: number;

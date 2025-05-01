@@ -11,14 +11,14 @@ import { auth } from '../../services/auth';
 import { useNavigate } from 'react-router-dom';
 
 export const Login: React.FC = () => {
-    const [email, setEmail] = useState('');
+    const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const navigate = useNavigate();
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        const user = auth.login({ email, password });
+        const user = auth.login({ username, password });
         
         if (user) {
             navigate(user.role === 'admin' ? '/admin' : '/client');
@@ -56,13 +56,13 @@ export const Login: React.FC = () => {
                             margin="normal"
                             required
                             fullWidth
-                            id="email"
-                            label="Correo Electrónico"
-                            name="email"
-                            autoComplete="email"
+                            id="username"
+                            label="Usuario"
+                            name="username"
+                            autoComplete="username"
                             autoFocus
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
                         />
                         <TextField
                             margin="normal"
