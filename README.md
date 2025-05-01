@@ -20,7 +20,7 @@ Este proyecto es una aplicación web para gestionar facturas de productos Mary K
 
 1. Clona el repositorio:
 ```bash
-git clone [URL_DEL_REPOSITORIO]
+git clone https://github.com/Elmerluis0129/WanMerKay.git
 cd registrar-facturas-mk
 ```
 
