@@ -6,7 +6,9 @@ import { ClientDashboard } from '../components/client/ClientDashboard';
 import { CreateInvoice } from '../components/admin/CreateInvoice';
 import { CreateUser } from '../components/admin/CreateUser';
 import { RegisterPayment } from '../components/admin/RegisterPayment';
+import { PaymentList } from '../components/admin/PaymentList';
 import { PrivateRoute } from '../components/auth/PrivateRoute';
+import { UserList } from '../components/admin/UserList';
 import { auth } from '../services/auth';
 
 export const AppRoutes: React.FC = () => {
@@ -47,10 +49,26 @@ export const AppRoutes: React.FC = () => {
         }
       />
       <Route
+        path="/admin/payment/list"
+        element={
+          <PrivateRoute requireAdmin>
+            <PaymentList />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/admin/user/create"
         element={
           <PrivateRoute requireAdmin>
             <CreateUser />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/user/list"
+        element={
+          <PrivateRoute requireAdmin>
+            <UserList />
           </PrivateRoute>
         }
       />

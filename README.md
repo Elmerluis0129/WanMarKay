@@ -1,123 +1,145 @@
-# Sistema de Registro de Facturas Mary Kay
+# 📋 Sistema de Registro de Facturas Mary Kay
 
-Este proyecto es una aplicación web para gestionar facturas de productos Mary Kay, permitiendo a los administradores crear facturas y usuarios, mientras que los clientes pueden ver sus propias facturas.
+**FacturaMK** es una aplicación web SPA construida en React + TypeScript que ofrece:
 
-## Características
+- Autenticación y gestión de roles (administrador y cliente).
+- CRUD de usuarios, facturas y pagos con base de datos en Supabase.
+- Panel de administrador para crear y listar facturas, usuarios y pagos.
+- Panel de cliente para consultar sus propias facturas y historial de pagos.
+- Subida y vista de imágenes (facturas y comprobantes).
+- Exportación de factura a PDF desde el modal de detalles.
+- Filtros avanzados, resaltado de texto, gráficos de resumen y diseño responsivo.
 
-- Sistema de autenticación para administradores y clientes
-- Creación y gestión de usuarios
-- Creación de facturas con múltiples productos
-- Cálculo automático de subtotales, ITBIS y totales
-- Vista de facturas filtrada por rol (administrador ve todas, cliente ve solo las suyas)
-- Interfaz moderna y fácil de usar con los colores corporativos de Mary Kay
+---
 
-## Requisitos Previos
+## 📦 Tecnologías
 
-- Node.js (versión 14 o superior)
-- npm (incluido con Node.js)
+- React 18
+- TypeScript
+- Material UI (MUI)
+- Supabase (PostgreSQL + Storage)
+- Vercel (despliegue frontend)
+- jsPDF + html2canvas (exportar a PDF)
+- Recharts (gráficos)
 
-## Instalación
+---
+
+## 🚀 Instalación y puesta en marcha
 
 1. Clona el repositorio:
+   ```bash
+   git clone https://github.com/tu-usuario/FacturaMK.git
+   cd FacturaMK
+   ```
+2. Instala dependencias:
+   ```bash
+   npm install
+   ```
+3. Renombra `.env.local.example` a `.env.local` y configura:
+   ```dotenv
+   REACT_APP_SUPABASE_URL=your_supabase_url
+   REACT_APP_SUPABASE_ANON_KEY=your_anon_key
+   ```
+4. Ejecuta en modo desarrollo:
+   ```bash
+   npm start
+   ```
+   La app estará disponible en `http://localhost:3000`.
+
+Para producción, genera el build y despliega en Vercel:
 ```bash
-git clone https://github.com/Elmerluis0129/WanMerKay.git
-cd registrar-facturas-mk
-```
+npm run build
+``` 
 
-2. Instala las dependencias:
-```bash
-npm install
-```
+---
 
-## Ejecución
+## 📂 Estructura del proyecto
 
-Para iniciar la aplicación en modo desarrollo:
-
-```bash
-npm start
-```
-
-La aplicación se abrirá automáticamente en tu navegador predeterminado en `http://localhost:3000`.
-
-## Estructura del Proyecto
-
-```plaintext
+```text
 src/
-  ├── components/
-  │   ├── auth/
-  │   │   ├── Login.tsx
-  │   │   └── PrivateRoute.tsx
-  │   ├── admin/
-  │   │   ├── AdminDashboard.tsx
-  │   │   ├── CreateUser.tsx
-  │   │   ├── CreateInvoice.tsx
-  │   │   └── RegisterPayment.tsx      # Formulario para registrar pagos de cuotas
-  │   ├── client/
-  │   │   └── ClientDashboard.tsx
-  │   └── shared/
-  │       ├── InvoiceList.tsx         # Lista de facturas con filtros y acciones
-  │       ├── Navigation.tsx           # Barra de navegación y título de sección
-  │       └── PaymentDetailsModal.tsx  # Modal de detalles de factura y registro de pagos (admin)
-  ├── routes/
-  │   └── AppRoutes.tsx               # Definición de rutas protegidas y públicas
-  ├── services/
-  │   └── auth.ts                     # Lógica de autenticación y roles
-  ├── utils/
-  │   ├── storage.ts                  # Wrapper de localStorage para usuarios y facturas
-  │   └── dateUtils.ts                # Utilidades para cálculo de fechas y días restantes
-  ├── types/
-  │   ├── invoice.ts                  # Tipos y enums de facturas y plan de pago
-  │   ├── user.ts                     # Tipo de usuario
-  │   ├── index.ts                    # Reexportación de tipos
-  │   └── autosuggest-highlight.d.ts  # Declaraciones de módulos para autosuggest-highlight
-  ├── App.tsx                         # Componente raíz y proveedor de tema
-  ├── index.tsx                       # Punto de entrada de React
-  ├── App.test.tsx                    # Test de renderizado básico de App
-  └── utils/
-      └── dateUtils.test.ts           # Tests unitarios de utilidades de fecha
+├─ components/
+│  ├─ auth/           # Login y rutas protegidas
+│  ├─ admin/          # Dashboard admin, formularios CRUD
+│  ├─ client/         # Dashboard cliente
+│  └─ shared/         # Navegación, listas, modales, gráficos
+├─ routes/            # Configuración de rutas React Router
+├─ services/          # Lógica de acceso a Supabase (auth, user, invoice, payment)
+├─ types/             # Definición de interfaces y tipos
+├─ utils/             # Utilidades (fechas, validaciones)
+└─ App.tsx            # Proveedor de tema, CssBaseline y rutas
 ```
 
-## Uso
+---
 
-### Como Administrador
+## 🧑‍💼 Casos de uso
 
-1. Inicia sesión con credenciales de administrador.
-2. En el panel de administrador podrás:
-   - Crear usuarios (clientes o administradores).
-   - Crear facturas con plan de pagos (configurar frecuencia y cuotas).
-   - Ver todas las facturas con filtros por estado, tipo, cliente o rango de fechas.
-   - Registrar pagos de cada cuota directamente desde el modal de detalles de factura.
-   - Cambiar el estado de la factura a "Pagada" o "Cancelada" cuando corresponda.
+### 1. Administrador
 
-### Como Cliente
+**Objetivo**: Gestionar usuarios, facturas y pagos.
 
-1. Inicia sesión con las credenciales proporcionadas por el administrador.
-2. En tu panel de cliente podrás:
-   - Ver la lista de tus facturas filtradas.
-   - Consultar detalles de cada factura (productos, totales y plan de pagos).
-   - Ver el historial de pagos realizados y los días restantes para tu siguiente cuota.
+1. Iniciar sesión con credenciales de administrador.
+2. Acceder al **Panel de Administrador**:
+   - **Crear Usuario**: Registrar nuevos clientes o administradores.
+   - **Crear Factura**: Completar datos (cliente, fecha, items, plan de pagos).
+   - **Listar Facturas**: Filtrar por estado, tipo, cliente o fecha.
+     - Abrir **Detalle** en modal para:
+       - Cambiar estado (Pendiente → Pagada/Cancelada) con confirmación.
+       - Registrar pago de cuotas (subir comprobante).
+       - Ver historial de pagos de esa factura.
+       - **Exportar a PDF** todo el detalle.
+   - **Listar Usuarios**: Buscar, filtrar y ver datos de usuarios.
+   - **Listar Pagos**: Revisión global de todos los pagos registrados.
 
-## Almacenamiento
+### 2. Cliente
 
-Actualmente los datos se conservan en `localStorage` usando los servicios y utilidades de `storage.ts`. En futuras versiones se integrará una API REST con base de datos.
+**Objetivo**: Consultar facturas y pagos.
 
-## Colores Corporativos
+1. Iniciar sesión con credenciales de cliente.
+2. Acceder al **Panel de Cliente**:
+   - **Mis Facturas**: Solo las facturas asociadas al cliente.
+   - Visualizar estado, totales y plan de pagos.
+   - Abrir modal de detalles de factura:
+     - Ver historial de pagos.
+     - Descargar factura en PDF.
 
-- Rosa Principal: #E31C79
-- Rosa Secundario: #C4156A
-- Blanco: #FFFFFF
-- Gris Texto: #666666
+---
 
-## Contribución
+## 🔧 Funcionalidades destacadas
 
-Para contribuir al proyecto:
+- **Filtros y resaltado**: Filtrar tablas y remarcado dinámico de coincidencias.
+- **Exportación PDF**: Descargar factura con diseño responsivo.
+- **Gráficos resumen**: Visualizar distribución de facturas (ej. estados) con Recharts.
+- **Diseño responsivo**: Tablas se adaptan con tarjetas (`Cards`) en móviles.
+- **Animaciones suaves**: Transiciones en hover y apertura de modales.
 
-1. Haz un fork del repositorio
-2. Crea una rama para tu característica (`git checkout -b feature/AmazingFeature`)
-3. Haz commit de tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
+---
 
-## Licencia
+## 🌈 Temas y estilos
+
+- Rosa Mary Kay: `#E31C79` (primario), `#C4156A` (oscuro).
+- Tipografía: Roboto, sans-serif.
+- Configurado en `App.tsx` con `createTheme` de MUI.
+
+---
+
+## 📖 Contribución
+
+1. Haz un _fork_ del repositorio.
+2. Crea una rama para tu feature:
+   ```bash
+git checkout -b feature/nombre-de-feature
+   ```
+3. Haz commit de tus cambios y sube la rama:
+   ```bash
+git commit -m "Agrega nueva funcionalidad"
+git push origin feature/nombre-de-feature
+   ```
+4. Abre un Pull Request describiendo los cambios.
+
+---
+
+## 📄 Licencia
+
+MIT © Wanda Mary Kay - Elmer Saint-Hilare - Lisa Encarnación
 
 

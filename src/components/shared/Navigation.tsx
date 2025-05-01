@@ -19,6 +19,7 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import PaymentIcon from '@mui/icons-material/Payment';
 import MenuIcon from '@mui/icons-material/Menu';
+import PeopleIcon from '@mui/icons-material/People';
 import { auth } from '../../services/auth';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -65,17 +66,17 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                 <>
                                     <Button 
                                         color="inherit" 
-                                        onClick={() => navigate('/admin/invoice/create')}
-                                        startIcon={<AddCircleIcon fontSize="small" />}
-                                    >
-                                        Crear Factura
-                                    </Button>
-                                    <Button 
-                                        color="inherit" 
                                         onClick={() => navigate('/admin/user/create')}
                                         startIcon={<PersonAddIcon fontSize="small" />}
                                     >
                                         Crear Usuario
+                                    </Button>
+                                    <Button 
+                                        color="inherit" 
+                                        onClick={() => navigate('/admin/invoice/create')}
+                                        startIcon={<AddCircleIcon fontSize="small" />}
+                                    >
+                                        Crear Factura
                                     </Button>
                                     <Button 
                                         color="inherit" 
@@ -86,11 +87,26 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                     </Button>
                                     <Button 
                                         color="inherit" 
+                                        onClick={() => navigate('/admin/user/list')}
+                                        startIcon={<PeopleIcon fontSize="small" />}
+                                    >
+                                        Ver Usuarios
+                                    </Button>
+                                    <Button 
+                                        color="inherit" 
                                         onClick={() => navigate('/admin')}
                                         startIcon={<ReceiptIcon fontSize="small" />}
                                     >
                                         Ver Facturas
                                     </Button>
+                                    <Button 
+                                        color="inherit" 
+                                        onClick={() => navigate('/admin/payment/list')}
+                                        startIcon={<ReceiptIcon fontSize="small" />}
+                                    >
+                                        Ver Pagos
+                                    </Button>
+                                    
                                 </>
                             )}
                             {!isAdmin && (
@@ -129,9 +145,17 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                 <ListItemIcon><PersonAddIcon /></ListItemIcon>
                                 <ListItemText primary="Crear Usuario" />
                             </ListItem>
+                            <ListItem button onClick={() => { navigate('/admin/user/list'); setDrawerOpen(false); }}>
+                                <ListItemIcon><PeopleIcon /></ListItemIcon>
+                                <ListItemText primary="Ver Usuarios" />
+                            </ListItem>
                             <ListItem button onClick={() => { navigate('/admin/payment/register'); setDrawerOpen(false); }}>
                                 <ListItemIcon><PaymentIcon /></ListItemIcon>
                                 <ListItemText primary="Registrar Pago" />
+                            </ListItem>
+                            <ListItem button onClick={() => { navigate('/admin/payment/list'); setDrawerOpen(false); }}>
+                                <ListItemIcon><ReceiptIcon /></ListItemIcon>
+                                <ListItemText primary="Ver Pagos" />
                             </ListItem>
                             <ListItem button onClick={() => { navigate('/admin'); setDrawerOpen(false); }}>
                                 <ListItemIcon><ReceiptIcon /></ListItemIcon>
@@ -144,7 +168,7 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                             <ListItemText primary="Mis Facturas" />
                         </ListItem>
                     )}
-                    <ListItem button onClick={() => { handleLogout(); setDrawerOpen(false); }}>
+                    <ListItem button onClick={async () => { setDrawerOpen(false); auth.logout(); navigate('/login', { replace: true }); }}>
                         <ListItemIcon><LogoutIcon /></ListItemIcon>
                         <ListItemText primary="Cerrar Sesión" />
                     </ListItem>

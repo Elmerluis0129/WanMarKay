@@ -20,12 +20,15 @@ export interface PaymentPlan {
 
 export interface Payment {
     id: string;
+    invoiceId?: string;
+    invoiceNumber?: string;
     date: string;
     amount: number;
     installmentNumber: number;
-    method?: 'cash' | 'transfer' | 'check';
+    method?: PaymentMethod;
     createdAt?: string;
     createdBy?: string;
+    createdByName?: string;
     attachment?: string;
 }
 

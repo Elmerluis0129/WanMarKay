@@ -30,5 +30,21 @@ export const userService = {
       role: data.role
     };
   },
+  updateUser: async (user: User): Promise<User> => {
+    const { data, error } = await supabase
+      .from('users')
+      .update({ full_name: user.fullName, password: user.password, role: user.role })
+      .eq('id', user.id)
+      .select('id, username, full_name, password, role')
+      .single();
+    if (error || !data) throw error;
+    return {
+      id: data.id,
+      username: data.username,
+      fullName: data.full_name,
+      password: data.password,
+      role: data.role
+    };
+  },
   // Puedes añadir updateUser, deleteUser... según necesidades
 };

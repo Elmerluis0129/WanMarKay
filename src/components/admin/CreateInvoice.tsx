@@ -202,6 +202,8 @@ export const CreateInvoice: React.FC = () => {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        if (!formData.cedula) { setMessage({ text: 'La cédula es obligatoria', isError: true }); return; }
+        if (!formData.phone) { setMessage({ text: 'El teléfono es obligatorio', isError: true }); return; }
         if (items.length === 0) { setMessage({ text:'Debe agregar al menos un producto', isError:true }); return; }
         if (!formData.invoiceNumber) { setMessage({ text:'El número de factura es obligatorio', isError:true }); return; }
         if (!selectedClient) { setMessage({ text:'Por favor seleccione un cliente', isError:true }); return; }
@@ -257,6 +259,7 @@ export const CreateInvoice: React.FC = () => {
                                         name="cedula"
                                         value={formData.cedula}
                                         onChange={handleChange}
+                                        required
                                     />
                                 </Grid>
                                 <Grid item xs={12} md={3}>

@@ -8,7 +8,8 @@ import {
     Paper,
     Autocomplete,
     Grid,
-    Alert
+    Alert,
+    MenuItem
 } from '@mui/material';
 import { Invoice } from '../../types/invoice';
 import { invoiceService } from '../../services/invoiceService';
@@ -24,7 +25,10 @@ export const RegisterPayment: React.FC = () => {
     const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
     const [amount, setAmount] = useState<string>('');
     const [paymentDate, setPaymentDate] = useState<Date | null>(new Date());
+    const [method, setMethod] = useState<'cash'|'transfer'|'deposit'>('cash');
     const [message, setMessage] = useState({ text: '', isError: false });
+    const [paymentAttachmentFile, setPaymentAttachmentFile] = useState<File | null>(null);
+    const [paymentAttachmentPreview, setPaymentAttachmentPreview] = useState<string | null>(null);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [loadError, setLoadError] = useState<string|null>(null);
 
@@ -68,7 +72,9 @@ export const RegisterPayment: React.FC = () => {
             id: uuidv4(),
             date: paymentDate.toISOString(),
             amount: paymentAmount,
-            installmentNumber: selectedInvoice.payments ? selectedInvoice.payments.length + 1 : 1
+            installmentNumber: selectedInvoice.payments ? selectedInvoice.payments.length + 1 : 1,
+            method,
+            attachment: paymentAttachmentPreview || undefined
         };
 
         // Registrar el pago y actualizar la factura
@@ -127,6 +133,16 @@ export const RegisterPayment: React.FC = () => {
                 date.setMonth(date.getMonth() + 1);
         }
         return date.toISOString();
+    };
+
+    // Handler para archivo de comprobante de pago
+    const handleAttachmentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setPaymentAttachmentFile(file);
+            const url = URL.createObjectURL(file);
+            setPaymentAttachmentPreview(url);
+        }
     };
 
     return (
@@ -206,6 +222,31 @@ export const RegisterPayment: React.FC = () => {
                                                 InputLabelProps={{ shrink: true }}
                                                 required
                                             />
+                                        </Grid>
+                                        {/* Método de Pago */}
+                                        <Grid item xs={12} md={6}>
+                                            <TextField
+                                                select
+                                                fullWidth
+                                                label="Método de Pago"
+                                                value={method}
+                                                onChange={e => setMethod(e.target.value as 'cash'|'transfer'|'deposit')}
+                                                required
+                                            >
+                                                <MenuItem value="cash">Efectivo</MenuItem>
+                                                <MenuItem value="transfer">Transferencia</MenuItem>
+                                                <MenuItem value="deposit">Depósito</MenuItem>
+                                            </TextField>
+                                        </Grid>
+                                        {/* Subir comprobante de pago */}
+                                        <Grid item xs={12} md={6}>
+                                            <Button variant="contained" component="label" sx={{ backgroundColor: '#E31C79', '&:hover': { backgroundColor: '#C4156A' } }}>
+                                                Subir Comprobante
+                                                <input type="file" hidden accept="image/*" onChange={handleAttachmentChange} />
+                                            </Button>
+                                            {paymentAttachmentPreview && (
+                                                <Box component="img" src={paymentAttachmentPreview} alt="Comprobante" sx={{ mt: 2, maxWidth: '100%', maxHeight: 200 }} />
+                                            )}
                                         </Grid>
                                     </>
                                 )}
