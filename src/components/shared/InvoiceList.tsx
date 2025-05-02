@@ -133,15 +133,16 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
         setConfirmDialog(prev => ({ ...prev, open: false }));
     };
 
+    // Colorea estados: 'pending', 'on_time', 'paid', 'delayed', 'cancelled'
     const getStatusColor = (status: string): "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning" => {
-        const colors: { [key: string]: "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning" } = {
-            pending: 'warning',
-            paid: 'success',
-            delayed: 'error',
-            cancelled: 'error',
-            on_time: 'success'
-        };
-        return colors[status] || 'default';
+        switch (status) {
+            case 'pending': return 'warning';
+            case 'on_time': return 'success';
+            case 'paid': return 'primary';   // pagada en azul
+            case 'delayed': return 'error';
+            case 'cancelled': return 'error';
+            default: return 'default';
+        }
     };
 
     const getStatusLabel = (status: string): string => {

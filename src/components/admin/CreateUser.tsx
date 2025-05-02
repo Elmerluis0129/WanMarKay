@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import InputMask from 'react-input-mask';
 import {
     Box,
     Container,
@@ -23,6 +24,9 @@ export const CreateUser: React.FC = () => {
         username: '',
         password: '',
         role: 'client' as UserRole,
+        cedula: '',
+        phone: '',
+        address: '',
     });
     const [message, setMessage] = useState({ text: '', isError: false });
 
@@ -43,9 +47,18 @@ export const CreateUser: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
+        // Quito guiones y no-dígitos antes de guardar
+        const cleanCedula = formData.cedula.replace(/-/g, '');
+        const cleanPhone = formData.phone.replace(/\D/g, '');
         const newUser: User = {
             id: uuidv4(),
-            ...formData,
+            fullName: formData.fullName,
+            username: formData.username,
+            password: formData.password,
+            role: formData.role,
+            cedula: cleanCedula,
+            phone: cleanPhone,
+            address: formData.address,
         };
 
         try {
@@ -56,6 +69,9 @@ export const CreateUser: React.FC = () => {
                 username: '',
                 password: '',
                 role: 'client',
+                cedula: '',
+                phone: '',
+                address: '',
             });
         } catch (error) {
             setMessage({ text: 'Error al crear el usuario', isError: true });
@@ -116,6 +132,49 @@ export const CreateUser: React.FC = () => {
                                 value={formData.password}
                                 onChange={handleChange}
                             />
+                            <TextField
+                                margin="normal"
+                                fullWidth
+                                name="address"
+                                label="Dirección/Referencia"
+                                value={formData.address}
+                                onChange={handleChange}
+                            />
+                            <InputMask
+                                mask="999-9999999-9"
+                                value={formData.cedula}
+                                onChange={handleChange}
+                                maskChar=""
+                            >
+                                {(maskProps: any) => (
+                                    <TextField
+                                        {...maskProps}
+                                        margin="normal"
+                                        required
+                                        fullWidth
+                                        name="cedula"
+                                        label="Cédula"
+                                        helperText="Formato: 000-0000000-0"
+                                    />
+                                )}
+                            </InputMask>
+                            <InputMask
+                                mask="+1 (999) 999-9999"
+                                value={formData.phone}
+                                onChange={handleChange}
+                                maskChar=""
+                            >
+                                {(maskProps: any) => (
+                                    <TextField
+                                        {...maskProps}
+                                        margin="normal"
+                                        required
+                                        fullWidth
+                                        name="phone"
+                                        label="Teléfono"
+                                    />
+                                )}
+                            </InputMask>
                             <FormControl fullWidth margin="normal">
                                 <InputLabel>Rol</InputLabel>
                                 <Select

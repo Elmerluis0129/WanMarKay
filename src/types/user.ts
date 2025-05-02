@@ -6,6 +6,9 @@ export interface User {
     fullName: string;
     password: string; // En una aplicación real, esto estaría hasheado
     role: UserRole;
+    cedula?: string;
+    phone?: string;
+    address?: string;
 }
 
 export interface LoginCredentials {

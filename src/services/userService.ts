@@ -5,21 +5,24 @@ export const userService = {
   getUsers: async (): Promise<User[]> => {
     const { data, error } = await supabase
       .from('users')
-      .select('id, username, full_name, password, role');
+      .select('id, username, full_name, password, role, cedula, phone, address');
     if (error) throw error;
     return (data || []).map((d: any) => ({
       id: d.id,
       username: d.username,
       fullName: d.full_name,
       password: d.password,
-      role: d.role
+      role: d.role,
+      cedula: d.cedula,
+      phone: d.phone,
+      address: d.address
     }));
   },
   addUser: async (user: User): Promise<User> => {
     const { data, error } = await supabase
       .from('users')
-      .insert([{ username: user.username, full_name: user.fullName, password: user.password, role: user.role }])
-      .select('id, username, full_name, password, role')
+      .insert([{ username: user.username, full_name: user.fullName, password: user.password, role: user.role, cedula: user.cedula, phone: user.phone, address: user.address }])
+      .select('id, username, full_name, password, role, cedula, phone, address')
       .single();
     if (error || !data) throw error;
     return {
@@ -27,15 +30,18 @@ export const userService = {
       username: data.username,
       fullName: data.full_name,
       password: data.password,
-      role: data.role
+      role: data.role,
+      cedula: data.cedula,
+      phone: data.phone,
+      address: data.address
     };
   },
   updateUser: async (user: User): Promise<User> => {
     const { data, error } = await supabase
       .from('users')
-      .update({ full_name: user.fullName, password: user.password, role: user.role })
+      .update({ username: user.username, full_name: user.fullName, password: user.password, role: user.role, cedula: user.cedula, phone: user.phone, address: user.address })
       .eq('id', user.id)
-      .select('id, username, full_name, password, role')
+      .select('id, username, full_name, password, role, cedula, phone, address')
       .single();
     if (error || !data) throw error;
     return {
@@ -43,7 +49,10 @@ export const userService = {
       username: data.username,
       fullName: data.full_name,
       password: data.password,
-      role: data.role
+      role: data.role,
+      cedula: data.cedula,
+      phone: data.phone,
+      address: data.address
     };
   },
   // Puedes añadir updateUser, deleteUser... según necesidades

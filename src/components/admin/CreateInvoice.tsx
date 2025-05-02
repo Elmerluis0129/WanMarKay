@@ -28,6 +28,7 @@ import {
     DialogTitle,
     DialogContent,
     DialogActions,
+    InputAdornment,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
@@ -41,15 +42,34 @@ import { Navigation } from '../shared/Navigation';
 import match from 'autosuggest-highlight/match';
 import parse from 'autosuggest-highlight/parse';
 import InputMask from 'react-input-mask';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+
+// Helper para formatear la cédula con guiones: 000-0000000-0
+const formatCedula = (value: string = ''): string => {
+    const digits = value.replace(/\D/g, '');
+    return digits.length === 11
+        ? `${digits.slice(0,3)}-${digits.slice(3,10)}-${digits.slice(10)}`
+        : value;
+};
+
+// Helper para formatear el teléfono: +1 (000) 000-0000 o (000) 000-0000
+const formatPhone = (value: string = ''): string => {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length === 11 && digits.startsWith('1')) {
+        return `+1 (${digits.slice(1,4)}) ${digits.slice(4,7)}-${digits.slice(7)}`;
+    } else if (digits.length === 10) {
+        return `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
+    }
+    return value;
+};
 
 export const CreateInvoice: React.FC = () => {
     const [formData, setFormData] = useState({
         invoiceNumber: '',
-        clientName: '',
+        date: new Date().toISOString().split('T')[0],
         address: '',
         cedula: '',
-        phone: '',
-        date: new Date().toISOString().split('T')[0],
+        phone: ''
     });
 
     const [availableClients, setAvailableClients] = useState<User[]>([]);
@@ -80,6 +100,20 @@ export const CreateInvoice: React.FC = () => {
     // Estado para diálogo de confirmación si no hay imagen
     const [openNoImageDialog, setOpenNoImageDialog] = useState<boolean>(false);
     const [skipNoImageConfirm, setSkipNoImageConfirm] = useState<boolean>(false);
+
+    const [invoiceNumberError, setInvoiceNumberError] = useState<string>('');
+
+    // Autocompletar datos de address, cédula y teléfono al cambiar cliente
+    useEffect(() => {
+        if (selectedClient) {
+            setFormData(prev => ({
+                ...prev,
+                address: selectedClient.address || '',
+                cedula: selectedClient.cedula || '',
+                phone: selectedClient.phone || ''
+            }));
+        }
+    }, [selectedClient]);
 
     // Handler para el input file
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -191,10 +225,24 @@ export const CreateInvoice: React.FC = () => {
             remainingAmount: total, status: initialStatus, paymentType, payments: [],
             ...(paymentType === 'credit' && { paymentPlan: { ...paymentPlan, paidInstallments: 0, startDate: startDate.toISOString(), nextPaymentDate: nextPaymentDate.toISOString() } as PaymentPlan })
         };
+        // Actualiza datos del usuario si alguno de sus campos estaba vacío en la base de datos
+        if (selectedClient) {
+            const updates: Partial<User> = {};
+            if (!selectedClient.address && formData.address) updates.address = formData.address;
+            if (!selectedClient.cedula && formData.cedula) {
+                updates.cedula = formData.cedula.replace(/-/g, '');
+            }
+            if (!selectedClient.phone && formData.phone) {
+                updates.phone = formData.phone.replace(/\D/g, '');
+            }
+            if (Object.keys(updates).length > 0) {
+                await userService.updateUser({ ...selectedClient, ...updates });
+            }
+        }
         await invoiceService.addInvoice(newInvoice);
         setMessage({ text: 'Factura creada exitosamente', isError: false });
         // reset form
-        setFormData({ invoiceNumber:'', clientName:'', address:'', cedula:'', phone:'', date:new Date().toISOString().split('T')[0] });
+        setFormData({ invoiceNumber:'', date:new Date().toISOString().split('T')[0], address:'', cedula:'', phone:'' });
         setSelectedClient(null); setItems([]); setPaymentType('cash');
         setPaymentPlan({ frequency:'monthly', totalInstallments:1, installmentAmount:0, startDate:new Date().toISOString().split('T')[0]});
         setAttachmentFile(null); setAttachmentPreview(null);
@@ -216,6 +264,24 @@ export const CreateInvoice: React.FC = () => {
 
     const confirmWithoutImage = () => { setSkipNoImageConfirm(true); setOpenNoImageDialog(false); };
 
+    // Validar en tiempo real si el número de factura ya existe
+    useEffect(() => {
+        (async () => {
+            const num = formData.invoiceNumber.trim();
+            if (!num) {
+                setInvoiceNumberError('');
+                return;
+            }
+            try {
+                const all = await invoiceService.getInvoices();
+                const exists = all.some(inv => inv.invoiceNumber === num);
+                setInvoiceNumberError(exists ? 'Número de factura ya existe. Elija otro.' : '');
+            } catch (err) {
+                console.error('Error validando número de factura', err);
+            }
+        })();
+    }, [formData.invoiceNumber]);
+
     return (
         <>
             <Navigation title="Crear Nueva Factura" />
@@ -232,8 +298,9 @@ export const CreateInvoice: React.FC = () => {
                         </Alert>
 
                         <Box component="form" onSubmit={handleSubmit}>
+                            {/* Solo No. Factura, los datos del cliente se autocompletan */}
                             <Grid container spacing={2} sx={{ mb: 3 }}>
-                                <Grid item xs={12} md={3}>
+                                <Grid item xs={12} md={4}>
                                     <TextField
                                         fullWidth
                                         label="No. Factura"
@@ -241,44 +308,18 @@ export const CreateInvoice: React.FC = () => {
                                         value={formData.invoiceNumber}
                                         onChange={handleChange}
                                         required
+                                        error={Boolean(invoiceNumberError)}
+                                        helperText={invoiceNumberError}
+                                        InputProps={{
+                                            endAdornment: (
+                                                formData.invoiceNumber.trim() && !invoiceNumberError ? (
+                                                    <InputAdornment position="end">
+                                                        <CheckCircleIcon color="success" />
+                                                    </InputAdornment>
+                                                ) : undefined
+                                            )
+                                        }}
                                     />
-                                </Grid>
-                                <Grid item xs={12} md={3}>
-                                    <TextField
-                                        fullWidth
-                                        label="Dirección"
-                                        name="address"
-                                        value={formData.address}
-                                        onChange={handleChange}
-                                    />
-                                </Grid>
-                                <Grid item xs={12} md={3}>
-                                    <TextField
-                                        fullWidth
-                                        label="Cédula"
-                                        name="cedula"
-                                        value={formData.cedula}
-                                        onChange={handleChange}
-                                        required
-                                    />
-                                </Grid>
-                                <Grid item xs={12} md={3}>
-                                    <InputMask
-                                        mask="+1 (999) 999-9999"
-                                        value={formData.phone}
-                                        onChange={handleChange}
-                                        maskChar="_"
-                                    >
-                                        {(maskProps: any) => (
-                                            <TextField
-                                                {...maskProps}
-                                                fullWidth
-                                                label="Teléfono"
-                                                name="phone"
-                                                required
-                                            />
-                                        )}
-                                    </InputMask>
                                 </Grid>
                             </Grid>
 
@@ -290,6 +331,11 @@ export const CreateInvoice: React.FC = () => {
                                         options={availableClients}
                                         getOptionLabel={opt => opt.fullName}
                                         isOptionEqualToValue={(opt, val) => opt.id === val.id}
+                                        filterOptions={(options, { inputValue }) =>
+                                            options.filter(o =>
+                                                o.fullName.toLowerCase().includes(inputValue.toLowerCase())
+                                            )
+                                        }
                                         renderInput={params => (
                                             <TextField
                                                 {...params}
@@ -315,6 +361,53 @@ export const CreateInvoice: React.FC = () => {
                                     InputLabelProps={{ shrink: true }}
                                 />
                             </Box>
+
+                            {/* Mostrar datos del cliente seleccionado */}
+                            <Grid container spacing={2} sx={{ mb: 3 }}>
+                                <Grid item xs={12} md={4}>
+                                    <TextField
+                                        fullWidth
+                                        label="Dirección/Referencia"
+                                        value={formData.address}
+                                        disabled
+                                    />
+                                </Grid>
+                                <Grid item xs={12} md={4}>
+                                    {selectedClient?.cedula ? (
+                                        <TextField
+                                            fullWidth
+                                            label="Cédula"
+                                            value={formatCedula(formData.cedula)}
+                                            disabled
+                                        />
+                                    ) : (
+                                        <InputMask
+                                            mask="999-9999999-9"
+                                            value={formData.cedula}
+                                            onChange={handleChange}
+                                            maskChar=""
+                                        >
+                                            {(maskProps: any) => (
+                                                <TextField
+                                                    {...maskProps}
+                                                    fullWidth
+                                                    name="cedula"
+                                                    label="Cédula"
+                                                    required
+                                                />
+                                            )}
+                                        </InputMask>
+                                    )}
+                                </Grid>
+                                <Grid item xs={12} md={4}>
+                                    <TextField
+                                        fullWidth
+                                        label="Teléfono"
+                                        value={formatPhone(formData.phone)}
+                                        disabled
+                                    />
+                                </Grid>
+                            </Grid>
 
                             <Grid container spacing={2} sx={{ mb: 3 }}>
                                 <Grid item xs={12}>
@@ -505,6 +598,7 @@ export const CreateInvoice: React.FC = () => {
                                 type="submit"
                                 fullWidth
                                 variant="contained"
+                                disabled={Boolean(invoiceNumberError)}
                                 sx={{
                                     mt: 3,
                                     backgroundColor: '#E31C79',
