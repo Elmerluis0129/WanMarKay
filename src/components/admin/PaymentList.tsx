@@ -30,6 +30,8 @@ const highlightText = (text: string, highlight: string): React.ReactNode => {
 
 export const PaymentList: React.FC = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
+  // Contador animado del total de pagos
+  const [displayCount, setDisplayCount] = useState(0);
   const [filterText, setFilterText] = useState<string>('');
 
   useEffect(() => {
@@ -38,6 +40,21 @@ export const PaymentList: React.FC = () => {
       setPayments(data);
     })();
   }, []);
+
+  // Animar conteo del total de pagos
+  useEffect(() => {
+    const total = payments.length;
+    let current = 0;
+    const duration = 1000;
+    const step = 50;
+    const increment = Math.ceil(total / (duration / step));
+    const timer = setInterval(() => {
+      current += increment;
+      if (current >= total) { current = total; clearInterval(timer); }
+      setDisplayCount(current);
+    }, step);
+    return () => clearInterval(timer);
+  }, [payments.length]);
 
   const filteredPayments = payments.filter(p =>
     (p.invoiceNumber ?? '').toLowerCase().includes(filterText.toLowerCase()) ||
@@ -49,8 +66,11 @@ export const PaymentList: React.FC = () => {
       <Navigation title="Lista de Pagos" />
       <Container>
         <Box sx={{ mt: 4 }}>
-          <Typography variant="h5" sx={{ color: '#E31C79', mb: 2 }}>
+          <Typography variant="h5" sx={{ color: '#E31C79', mb: 1 }}>
             Pagos
+          </Typography>
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            Total de pagos: {displayCount}
           </Typography>
           <TextField
             fullWidth
@@ -75,7 +95,11 @@ export const PaymentList: React.FC = () => {
               </TableHead>
               <TableBody>
                 {filteredPayments.map((p: Payment, index: number) => (
-                  <TableRow key={p.id} hover>
+                  <TableRow
+                    key={p.id}
+                    hover
+                    sx={{ backgroundColor: index % 2 === 0 ? '#ffffff' : '#f5f5f5' }}
+                  >
                     <TableCell>{index + 1}</TableCell>
                     <TableCell>{highlightText(p.invoiceNumber ?? '-', filterText)}</TableCell>
                     <TableCell>{p.date}</TableCell>

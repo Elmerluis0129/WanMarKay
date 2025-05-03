@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import InputMask from 'react-input-mask';
 import {
     Box,
@@ -12,6 +12,8 @@ import {
     Select,
     MenuItem,
     SelectChangeEvent,
+    Snackbar,
+    Alert,
 } from '@mui/material';
 import { v4 as uuidv4 } from 'uuid';
 import { User, UserRole } from '../../types/user';
@@ -20,7 +22,8 @@ import { Navigation } from '../shared/Navigation';
 
 export const CreateUser: React.FC = () => {
     const [formData, setFormData] = useState({
-        fullName: '',
+        firstNames: '',
+        lastNames: '',
         username: '',
         password: '',
         role: 'client' as UserRole,
@@ -28,13 +31,41 @@ export const CreateUser: React.FC = () => {
         phone: '',
         address: '',
     });
-    const [message, setMessage] = useState({ text: '', isError: false });
+    const [cedulaError, setCedulaError] = useState<string>('');
+    const [usernameTouched, setUsernameTouched] = useState(false);
+    const [passwordTouched, setPasswordTouched] = useState(false);
+    const [snackbarOpen, setSnackbarOpen] = useState(false);
+    const [snackbarMessage, setSnackbarMessage] = useState('');
+    const [snackbarSeverity, setSnackbarSeverity] = useState<'success'|'error'>('success');
+
+    useEffect(() => {
+        const clean = (s: string) => s.replace(/\D/g, '');
+        const defaultClean = '11111111111'; // cedula default sin guiones
+        const current = clean(formData.cedula || '');
+        if (!current || current === defaultClean) { setCedulaError(''); return; }
+        userService.getUsers()
+          .then(users => {
+            const exists = users.some(u => u.cedula?.replace(/\D/g,'') === current);
+            setCedulaError(exists ? 'Ya existe un usuario con esta cédula' : '');
+          })
+          .catch(() => setCedulaError(''));
+    }, [formData.cedula]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value,
+        const { name, value } = e.target;
+        setFormData(prev => {
+            const newData = { ...prev, [name]: value } as any;
+            if (name === 'firstNames' || name === 'lastNames') {
+                const first = newData.firstNames.trim().split(' ')[0] || '';
+                const initial = newData.lastNames.trim().split(' ')[0]?.[0] || '';
+                const autoUser = `${first.toLowerCase()}${initial.toUpperCase()}`;
+                if (!usernameTouched) newData.username = autoUser;
+                if (!passwordTouched) newData.password = autoUser + '123';
+            }
+            return newData;
         });
+        if (name === 'username') setUsernameTouched(true);
+        if (name === 'password') setPasswordTouched(true);
     };
 
     const handleRoleChange = (e: SelectChangeEvent) => {
@@ -46,13 +77,26 @@ export const CreateUser: React.FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
-        // Quito guiones y no-dígitos antes de guardar
+        const allUsers = await userService.getUsers();
+        const normalize = (str: string) => str.replace(/\s+/g, '').toLowerCase();
+        const fullName = `${formData.firstNames} ${formData.lastNames}`.trim();
+        if (allUsers.some(u => normalize(u.fullName) === normalize(fullName))) {
+            setSnackbarMessage('Ya existe un usuario con ese nombre');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+            return;
+        }
+        if (allUsers.some(u => normalize(u.username) === normalize(formData.username))) {
+            setSnackbarMessage('El nombre de usuario ya está en uso');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+            return;
+        }
         const cleanCedula = formData.cedula.replace(/-/g, '');
         const cleanPhone = formData.phone.replace(/\D/g, '');
         const newUser: User = {
             id: uuidv4(),
-            fullName: formData.fullName,
+            fullName,
             username: formData.username,
             password: formData.password,
             role: formData.role,
@@ -63,9 +107,12 @@ export const CreateUser: React.FC = () => {
 
         try {
             await userService.addUser(newUser);
-            setMessage({ text: 'Usuario creado exitosamente', isError: false });
+            setSnackbarMessage(`Usuario "${newUser.username}" creado exitosamente`);
+            setSnackbarSeverity('success');
+            setSnackbarOpen(true);
             setFormData({
-                fullName: '',
+                firstNames: '',
+                lastNames: '',
                 username: '',
                 password: '',
                 role: 'client',
@@ -74,7 +121,9 @@ export const CreateUser: React.FC = () => {
                 address: '',
             });
         } catch (error) {
-            setMessage({ text: 'Error al crear el usuario', isError: true });
+            setSnackbarMessage('Error al crear el usuario');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
         }
     };
 
@@ -107,29 +156,18 @@ export const CreateUser: React.FC = () => {
                                 margin="normal"
                                 required
                                 fullWidth
-                                name="fullName"
-                                label="Nombre Completo"
-                                value={formData.fullName}
+                                name="firstNames"
+                                label="Nombre(s)"
+                                value={formData.firstNames}
                                 onChange={handleChange}
                             />
                             <TextField
                                 margin="normal"
                                 required
                                 fullWidth
-                                name="username"
-                                label="Usuario"
-                                type="text"
-                                value={formData.username}
-                                onChange={handleChange}
-                            />
-                            <TextField
-                                margin="normal"
-                                required
-                                fullWidth
-                                name="password"
-                                label="Contraseña"
-                                type="password"
-                                value={formData.password}
+                                name="lastNames"
+                                label="Apellido(s)"
+                                value={formData.lastNames}
                                 onChange={handleChange}
                             />
                             <TextField
@@ -154,7 +192,8 @@ export const CreateUser: React.FC = () => {
                                         fullWidth
                                         name="cedula"
                                         label="Cédula"
-                                        helperText="Formato: 000-0000000-0"
+                                        error={Boolean(cedulaError)}
+                                        helperText={cedulaError || 'Formato: 000-0000000-0'}
                                     />
                                 )}
                             </InputMask>
@@ -186,18 +225,26 @@ export const CreateUser: React.FC = () => {
                                     <MenuItem value="admin">Administrador</MenuItem>
                                 </Select>
                             </FormControl>
-                            {message.text && (
-                                <Typography 
-                                    color={message.isError ? 'error' : 'success'} 
-                                    sx={{ mt: 2 }}
+                            <Snackbar
+                                open={snackbarOpen}
+                                autoHideDuration={3000}
+                                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+                                onClose={() => setSnackbarOpen(false)}
+                            >
+                                <Alert
+                                    onClose={() => setSnackbarOpen(false)}
+                                    severity={snackbarSeverity}
+                                    elevation={6}
+                                    variant="filled"
                                 >
-                                    {message.text}
-                                </Typography>
-                            )}
+                                    {snackbarMessage}
+                                </Alert>
+                            </Snackbar>
                             <Button
                                 type="submit"
                                 fullWidth
                                 variant="contained"
+                                disabled={Boolean(cedulaError)}
                                 sx={{
                                     mt: 3,
                                     mb: 2,

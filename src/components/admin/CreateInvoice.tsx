@@ -19,6 +19,7 @@ import {
     MenuItem,
     SelectChangeEvent,
     FormControlLabel,
+    Checkbox,
     Radio,
     RadioGroup,
     Autocomplete,
@@ -29,6 +30,8 @@ import {
     DialogContent,
     DialogActions,
     InputAdornment,
+    Snackbar,
+    Alert as MuiAlert,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
@@ -38,6 +41,7 @@ import { Invoice, InvoiceItem, PaymentPlan, User } from '../../types';
 import { userService } from '../../services/userService';
 import { invoiceService } from '../../services/invoiceService';
 import { auth } from '../../services/auth';
+import { storageService } from '../../services/storageService';
 import { Navigation } from '../shared/Navigation';
 import match from 'autosuggest-highlight/match';
 import parse from 'autosuggest-highlight/parse';
@@ -72,6 +76,11 @@ export const CreateInvoice: React.FC = () => {
         phone: ''
     });
 
+    // Estados para descuento
+    const [applyDiscount, setApplyDiscount] = useState<boolean>(false);
+    const [discountType, setDiscountType] = useState<'percentage'|'amount'>('percentage');
+    const [discountValue, setDiscountValue] = useState<number>(0);
+
     const [availableClients, setAvailableClients] = useState<User[]>([]);
     const [selectedClient, setSelectedClient] = useState<User | null>(null);
 
@@ -91,7 +100,10 @@ export const CreateInvoice: React.FC = () => {
         startDate: new Date().toISOString().split('T')[0],
     });
 
-    const [message, setMessage] = useState({ text: '', isError: false });
+    // Feedback con Snackbar
+    const [snackbarOpen, setSnackbarOpen] = useState(false);
+    const [snackbarMessage, setSnackbarMessage] = useState('');
+    const [snackbarSeverity, setSnackbarSeverity] = useState<'success'|'error'>('success');
 
     // Estado para imagen adjunta y su preview
     const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
@@ -99,7 +111,6 @@ export const CreateInvoice: React.FC = () => {
 
     // Estado para diálogo de confirmación si no hay imagen
     const [openNoImageDialog, setOpenNoImageDialog] = useState<boolean>(false);
-    const [skipNoImageConfirm, setSkipNoImageConfirm] = useState<boolean>(false);
 
     const [invoiceNumberError, setInvoiceNumberError] = useState<string>('');
 
@@ -194,15 +205,31 @@ export const CreateInvoice: React.FC = () => {
 
     const calculateTotal = () => {
         const subtotal = items.reduce((sum, item) => sum + item.total, 0);
-        return {
-            subtotal,
-            total: subtotal,
-        };
+        let discountAmt = 0;
+        if (applyDiscount) {
+            if (discountType === 'percentage') {
+                discountAmt = subtotal * (discountValue / 100);
+            } else {
+                discountAmt = discountValue;
+            }
+            // No superar el subtotal
+            discountAmt = Math.min(discountAmt, subtotal);
+        }
+        const total = subtotal - discountAmt;
+        return { subtotal, discountAmt, total };
     };
 
     const saveInvoice = async () => {
-        const { subtotal } = calculateTotal();
-        const total = subtotal;
+        // Generar ID y subir imagen si existe
+        const id = uuidv4();
+        let publicUrl: string | undefined;
+        if (attachmentFile) {
+            // Subir el archivo y obtener el path en el bucket
+            const path = await storageService.uploadFacturaImage(attachmentFile, id);
+            // Generar un signed URL válido por 1 año
+            publicUrl = await storageService.createSignedUrl(path, 31536000);
+        }
+        const { subtotal, total } = calculateTotal();
         const currentUser = auth.getCurrentUser();
         const startDate = new Date(paymentPlan.startDate || new Date());
         let nextPaymentDate = new Date(startDate);
@@ -216,12 +243,16 @@ export const CreateInvoice: React.FC = () => {
         const diffDays = Math.ceil((nextPaymentDate.getTime() - today.getTime())/(1000*60*60*24));
         const initialStatus = diffDays < 0 ? 'delayed' : 'pending';
         const newInvoice: Invoice = {
-            id: uuidv4(), invoiceNumber: formData.invoiceNumber, date: formData.date,
+            id,
+            invoiceNumber: formData.invoiceNumber,
+            date: formData.date,
             clientName: selectedClient!.fullName,
             clientId: selectedClient!.id,
-            address: formData.address || undefined, cedula: formData.cedula || undefined,
+            address: formData.address || undefined,
+            cedula: formData.cedula || undefined,
             phone: formData.phone || undefined,
-            ...(attachmentPreview && { attachment: attachmentPreview }), items, subtotal, total,
+            ...(publicUrl && { attachment: publicUrl }),
+            items, subtotal, total,
             remainingAmount: total, status: initialStatus, paymentType, payments: [],
             ...(paymentType === 'credit' && { paymentPlan: { ...paymentPlan, paidInstallments: 0, startDate: startDate.toISOString(), nextPaymentDate: nextPaymentDate.toISOString() } as PaymentPlan })
         };
@@ -240,7 +271,9 @@ export const CreateInvoice: React.FC = () => {
             }
         }
         await invoiceService.addInvoice(newInvoice);
-        setMessage({ text: 'Factura creada exitosamente', isError: false });
+        setSnackbarMessage('Factura creada exitosamente');
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
         // reset form
         setFormData({ invoiceNumber:'', date:new Date().toISOString().split('T')[0], address:'', cedula:'', phone:'' });
         setSelectedClient(null); setItems([]); setPaymentType('cash');
@@ -250,19 +283,39 @@ export const CreateInvoice: React.FC = () => {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.cedula) { setMessage({ text: 'La cédula es obligatoria', isError: true }); return; }
-        if (!formData.phone) { setMessage({ text: 'El teléfono es obligatorio', isError: true }); return; }
-        if (items.length === 0) { setMessage({ text:'Debe agregar al menos un producto', isError:true }); return; }
-        if (!formData.invoiceNumber) { setMessage({ text:'El número de factura es obligatorio', isError:true }); return; }
-        if (!selectedClient) { setMessage({ text:'Por favor seleccione un cliente', isError:true }); return; }
-        if (!skipNoImageConfirm && !attachmentPreview) { setOpenNoImageDialog(true); return; }
+        if (!formData.cedula) { 
+            setSnackbarMessage('La cédula es obligatoria'); setSnackbarSeverity('error'); setSnackbarOpen(true);
+            return;
+        }
+        if (!formData.phone) { 
+            setSnackbarMessage('El teléfono es obligatorio'); setSnackbarSeverity('error'); setSnackbarOpen(true);
+            return;
+        }
+        if (items.length === 0) { 
+            setSnackbarMessage('Debe agregar al menos un producto'); setSnackbarSeverity('error'); setSnackbarOpen(true);
+            return;
+        }
+        if (!formData.invoiceNumber) { 
+            setSnackbarMessage('El número de factura es obligatorio'); setSnackbarSeverity('error'); setSnackbarOpen(true);
+            return;
+        }
+        if (!selectedClient) { 
+            setSnackbarMessage('Por favor seleccione un cliente'); setSnackbarSeverity('error'); setSnackbarOpen(true);
+            return;
+        }
+        if (!attachmentPreview) {
+            setOpenNoImageDialog(true);
+            return;
+        }
         saveInvoice();
-        setSkipNoImageConfirm(false);
     };
 
     const totals = calculateTotal();
 
-    const confirmWithoutImage = () => { setSkipNoImageConfirm(true); setOpenNoImageDialog(false); };
+    const confirmWithoutImage = async () => {
+        setOpenNoImageDialog(false);
+        await saveInvoice();
+    };
 
     // Validar en tiempo real si el número de factura ya existe
     useEffect(() => {
@@ -447,6 +500,7 @@ export const CreateInvoice: React.FC = () => {
                                     name="quantity"
                                     label="Cantidad"
                                     value={newItem.quantity}
+                                    onFocus={e => (e.target as HTMLInputElement).select()}
                                     onChange={handleItemChange}
                                     sx={{ width: '150px' }}
                                 />
@@ -455,6 +509,7 @@ export const CreateInvoice: React.FC = () => {
                                     name="unitPrice"
                                     label="Precio Unitario"
                                     value={newItem.unitPrice}
+                                    onFocus={e => (e.target as HTMLInputElement).select()}
                                     onChange={handleItemChange}
                                     sx={{ width: '150px' }}
                                 />
@@ -508,6 +563,41 @@ export const CreateInvoice: React.FC = () => {
                                 </Table>
                             </TableContainer>
 
+                            {/* Sección de Descuento */}
+                            <Box sx={{ mt: 3, mb: 3 }}>
+                                <Typography variant="h6">Descuento</Typography>
+                                <FormControlLabel
+                                    control={
+                                        <Checkbox
+                                            checked={applyDiscount}
+                                            onChange={e => setApplyDiscount(e.target.checked)}
+                                        />
+                                    }
+                                    label="Aplicar descuento"
+                                />
+                                {applyDiscount && (
+                                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mt: 1 }}>
+                                        <RadioGroup
+                                            row
+                                            name="discountType"
+                                            value={discountType}
+                                            onChange={e => setDiscountType(e.target.value as 'percentage'|'amount')}
+                                        >
+                                            <FormControlLabel value="percentage" control={<Radio />} label="%" />
+                                            <FormControlLabel value="amount" control={<Radio />} label="RD$" />
+                                        </RadioGroup>
+                                        <TextField
+                                            type="number"
+                                            label={discountType === 'percentage' ? '% de descuento' : 'Monto de descuento'}
+                                            value={discountValue}
+                                            onFocus={e => (e.target as HTMLInputElement).select()}
+                                            onChange={e => setDiscountValue(Number(e.target.value))}
+                                            sx={{ width: 150 }}
+                                        />
+                                    </Box>
+                                )}
+                            </Box>
+
                             <Box sx={{ mt: 4, mb: 3 }}>
                                 <Typography variant="h6" sx={{ mb: 2 }}>
                                     Forma de Pago
@@ -556,6 +646,7 @@ export const CreateInvoice: React.FC = () => {
                                             name="totalInstallments"
                                             label="Número de Pagos"
                                             value={paymentPlan.totalInstallments}
+                                            onFocus={e => (e.target as HTMLInputElement).select()}
                                             onChange={handlePaymentPlanChange}
                                             sx={{ width: 150 }}
                                         />
@@ -585,14 +676,22 @@ export const CreateInvoice: React.FC = () => {
                                 </Typography>
                             </Box>
 
-                            {message.text && (
-                                <Typography 
-                                    color={message.isError ? 'error' : 'success'} 
-                                    sx={{ mt: 2 }}
+                            {/* Snackbar de feedback */}
+                            <Snackbar
+                                open={snackbarOpen}
+                                autoHideDuration={3000}
+                                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+                                onClose={() => setSnackbarOpen(false)}
+                            >
+                                <MuiAlert
+                                    onClose={() => setSnackbarOpen(false)}
+                                    severity={snackbarSeverity}
+                                    elevation={6}
+                                    variant="filled"
                                 >
-                                    {message.text}
-                                </Typography>
-                            )}
+                                    {snackbarMessage}
+                                </MuiAlert>
+                            </Snackbar>
 
                             <Button
                                 type="submit"

@@ -67,6 +67,8 @@ export const UserList: React.FC = () => {
   const currentUser = auth.getCurrentUser();
   const isAdmin = currentUser?.role === 'admin';
   const [users, setUsers] = useState<User[]>([]);
+  // Contador animado del total de usuarios
+  const [displayCount, setDisplayCount] = useState(0);
   const [filterText, setFilterText] = useState<string>('');
   const [editUser, setEditUser] = useState<User | null>(null);
   const [editForm, setEditForm] = useState<Partial<User>>({});
@@ -80,6 +82,21 @@ export const UserList: React.FC = () => {
       setUsers(data);
     })();
   }, []);
+
+  // Animar conteo del total de usuarios
+  useEffect(() => {
+    const total = users.length;
+    let current = 0;
+    const duration = 1000;
+    const step = 50;
+    const increment = Math.ceil(total / (duration / step));
+    const timer = setInterval(() => {
+      current += increment;
+      if (current >= total) { current = total; clearInterval(timer); }
+      setDisplayCount(current);
+    }, step);
+    return () => clearInterval(timer);
+  }, [users.length]);
 
   const openEdit = (user: User) => {
     setEditUser(user);
@@ -130,8 +147,11 @@ export const UserList: React.FC = () => {
       <Navigation title="Lista de Usuarios" />
       <Container>
         <Box sx={{ mt: 4 }}>
-          <Typography variant="h5" sx={{ color: '#E31C79', mb: 2 }}>
+          <Typography variant="h5" sx={{ color: '#E31C79', mb: 1 }}>
             Usuarios
+          </Typography>
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            Total de usuarios: {displayCount}
           </Typography>
           <TextField
             fullWidth
@@ -144,7 +164,7 @@ export const UserList: React.FC = () => {
             <Table sx={{ tableLayout: 'auto', width: '100%' }}>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>#</TableCell>
+                  <TableCell>#</TableCell>
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>Usuario</TableCell>
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>Nombre Completo</TableCell>
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>Rol</TableCell>
@@ -156,7 +176,7 @@ export const UserList: React.FC = () => {
               </TableHead>
               <TableBody>
                 {filteredUsers.map((user, index) => (
-                  <TableRow key={user.id} hover>
+                  <TableRow key={user.id} hover sx={{ backgroundColor: index % 2 === 0 ? '#ffffff' : '#f5f5f5' }}>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>{index + 1}</TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.username, filterText)}</TableCell>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.fullName, filterText)}</TableCell>

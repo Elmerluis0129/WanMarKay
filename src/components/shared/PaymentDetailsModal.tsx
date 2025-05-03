@@ -43,6 +43,24 @@ interface PaymentDetailsModalProps {
     onPaymentRegistered?: (invoice: Invoice) => void;
 }
 
+// Helpers para formatear cédula y teléfono visualmente
+const formatCedula = (value: string = ''): string => {
+    const digits = value.replace(/\D/g, '');
+    return digits.length === 11
+        ? `${digits.slice(0,3)}-${digits.slice(3,10)}-${digits.slice(10)}`
+        : value;
+};
+
+const formatPhone = (value: string = ''): string => {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length === 11 && digits.startsWith('1')) {
+        return `+1 (${digits.slice(1,4)}) ${digits.slice(4,7)}-${digits.slice(7)}`;
+    } else if (digits.length === 10) {
+        return `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
+    }
+    return value;
+};
+
 export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
     open,
     onClose,
@@ -65,7 +83,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
     const [editedInvoice, setEditedInvoice] = useState<Invoice | null>(null);
     const [imageDialogOpen, setImageDialogOpen] = useState<boolean>(false);
     const [paymentAttachmentPreview, setPaymentAttachmentPreview] = useState<string | null>(null);
-    const [invoiceAttachmentPreview, setInvoiceAttachmentPreview] = useState<string | null>(null);
+    const [invoiceSignedUrl, setInvoiceSignedUrl] = useState<string | null>(null);
     const isAdmin = auth.getCurrentUser()?.role === 'admin';
     const pdfRef = useRef<HTMLDivElement>(null);
     const [paymentHistory, setPaymentHistory] = useState<Payment[]>([]);
@@ -75,7 +93,8 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
             setSelectedStatus(invoice.status);
             setEditedInvoice(invoice);
             setIsEditing(false);
-            setInvoiceAttachmentPreview(invoice.attachment || null);
+            // Usar directamente la URL firmada guardada en attachment
+            setInvoiceSignedUrl(invoice.attachment || null);
         }
     }, [invoice]);
 
@@ -96,9 +115,6 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
 
     const handleSaveEdit = async () => {
         if (!editedInvoice) return;
-        if (invoiceAttachmentPreview) {
-            editedInvoice.attachment = invoiceAttachmentPreview;
-        }
         await invoiceService.updateInvoice(editedInvoice);
         if (onPaymentRegistered) onPaymentRegistered(editedInvoice);
         setIsEditing(false);
@@ -284,21 +300,76 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                   )}
                   <Typography><strong>Cliente:</strong> {invoice.clientName}</Typography>
                   <Typography><strong>Fecha:</strong> {new Date(invoice.date).toLocaleDateString()}</Typography>
-                  {invoice.address && <Typography><strong>Dirección:</strong> {invoice.address}</Typography>}
-                  {invoice.cedula && <Typography><strong>Cédula:</strong> {invoice.cedula}</Typography>}
-                  {invoice.phone && <Typography><strong>Teléfono:</strong> {invoice.phone}</Typography>}
+                  {isEditing ? (
+                    <>
+                      <TextField
+                        label="Dirección"
+                        fullWidth
+                        size="small"
+                        value={editedInvoice?.address || ''}
+                        onChange={e => setEditedInvoice(prev => prev && { ...prev, address: e.target.value })}
+                        sx={{ mb: 1 }}
+                      />
+                      <TextField
+                        label="Cédula"
+                        fullWidth
+                        size="small"
+                        value={editedInvoice?.cedula || ''}
+                        onChange={e => setEditedInvoice(prev => prev && { ...prev, cedula: e.target.value })}
+                        sx={{ mb: 1 }}
+                      />
+                      <TextField
+                        label="Teléfono"
+                        fullWidth
+                        size="small"
+                        value={editedInvoice?.phone || ''}
+                        onChange={e => setEditedInvoice(prev => prev && { ...prev, phone: e.target.value })}
+                        sx={{ mb: 1 }}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      {invoice.address && <Typography><strong>Dirección:</strong> {invoice.address}</Typography>}
+                      {invoice.cedula && <Typography><strong>Cédula:</strong> {formatCedula(invoice.cedula)}</Typography>}
+                      {invoice.phone && <Typography><strong>Teléfono:</strong> {formatPhone(invoice.phone)}</Typography>}
+                    </>
+                  )}
                   <Typography><strong>Total:</strong> RD$ {invoice.total.toFixed(2)}</Typography>
                   <Typography><strong>Pendiente:</strong> RD$ {invoice.remainingAmount.toFixed(2)}</Typography>
                 </Stack>
               </Grid>
               <Grid item xs={12} sm={6}>
-                {invoice.attachment && (
+                {invoiceSignedUrl && (
                   <Paper variant="outlined" sx={{ p:1, textAlign:'center' }}>
-                    <Box component="img" src={invoice.attachment} alt="Factura" sx={{ maxWidth:'100%', maxHeight:200, cursor:'zoom-in' }} onClick={() => setImageDialogOpen(true)} />
+                    <Box component="img" src={invoiceSignedUrl} alt="Factura" sx={{ maxWidth:'100%', maxHeight:200, cursor:'zoom-in' }} onClick={() => setImageDialogOpen(true)} />
                   </Paper>
                 )}
               </Grid>
             </Grid>
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="subtitle1" gutterBottom>Productos</Typography>
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Descripción</TableCell>
+                    <TableCell align="right">Cantidad</TableCell>
+                    <TableCell align="right">Precio Unit.</TableCell>
+                    <TableCell align="right">Total</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {invoice.items.map((item, idx) => (
+                    <TableRow key={idx} hover>
+                      <TableCell>{item.description}</TableCell>
+                      <TableCell align="right">{item.quantity}</TableCell>
+                      <TableCell align="right">RD$ {item.unitPrice.toFixed(2)}</TableCell>
+                      <TableCell align="right">RD$ {item.total.toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
             {/* Historial de Pagos */}
             {paymentHistory.length > 0 && (
               <>
@@ -372,13 +443,15 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
           PaperProps={{ style: { backgroundColor: 'transparent', boxShadow: 'none' } }}
         >
           <DialogContent sx={{ p: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            <Box
-              component="img"
-              src={invoice?.attachment!}
-              alt="Factura Ampliada"
-              sx={{ width: '100%', height: 'auto', cursor: 'zoom-out' }}
-              onClick={() => setImageDialogOpen(false)}
-            />
+            {invoiceSignedUrl && (
+              <Box
+                component="img"
+                src={invoiceSignedUrl}
+                alt="Factura Ampliada"
+                sx={{ width: '100%', height: 'auto', cursor: 'zoom-out' }}
+                onClick={() => setImageDialogOpen(false)}
+              />
+            )}
           </DialogContent>
         </Dialog>
         </>

@@ -21,6 +21,23 @@ import { v4 as uuidv4 } from 'uuid';
 // import { es } from 'date-fns/locale';
 // import type { TextFieldProps } from '@mui/material';
 
+// Helpers para formatear cédula y teléfono
+const formatCedula = (value: string = ''): string => {
+    const digits = value.replace(/\D/g, '');
+    return digits.length === 11 ?
+        `${digits.slice(0,3)}-${digits.slice(3,10)}-${digits.slice(10)}` : value;
+};
+
+const formatPhone = (value: string = ''): string => {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length === 11 && digits.startsWith('1')) {
+        return `+1 (${digits.slice(1,4)}) ${digits.slice(4,7)}-${digits.slice(7)}`;
+    } else if (digits.length === 10) {
+        return `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
+    }
+    return value;
+};
+
 export const RegisterPayment: React.FC = () => {
     const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
     const [amount, setAmount] = useState<string>('');
@@ -31,6 +48,7 @@ export const RegisterPayment: React.FC = () => {
     const [paymentAttachmentPreview, setPaymentAttachmentPreview] = useState<string | null>(null);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [loadError, setLoadError] = useState<string|null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Cargar facturas pendientes o en curso
     useEffect(() => {
@@ -51,6 +69,7 @@ export const RegisterPayment: React.FC = () => {
 
     const handlePaymentSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isSubmitting) return;
         if (!selectedInvoice || !amount || !paymentDate) {
             setMessage({ text: 'Por favor complete todos los campos', isError: true });
             return;
@@ -79,6 +98,7 @@ export const RegisterPayment: React.FC = () => {
 
         // Registrar el pago y actualizar la factura
         try {
+            setIsSubmitting(true);
             // Registrar pago pasando el id de la factura
             await paymentService.registerPayment(selectedInvoice.id, newPayment);
             const updatedInvoice = {
@@ -114,6 +134,8 @@ export const RegisterPayment: React.FC = () => {
             console.error('Error completo:', error);
             console.error('Detalle:', error.message || error.error || JSON.stringify(error));
             setMessage({ text: error.message || JSON.stringify(error), isError: true });
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -182,6 +204,12 @@ export const RegisterPayment: React.FC = () => {
                                 </Grid>
                                 {selectedInvoice && (
                                     <> 
+                                        {/* Datos del cliente */}
+                                        <Grid item xs={12}>
+                                            {selectedInvoice.address && <Typography><strong>Dirección:</strong> {selectedInvoice.address}</Typography>}
+                                            {selectedInvoice.cedula && <Typography><strong>Cédula:</strong> {formatCedula(selectedInvoice.cedula)}</Typography>}
+                                            {selectedInvoice.phone && <Typography><strong>Teléfono:</strong> {formatPhone(selectedInvoice.phone)}</Typography>}
+                                        </Grid>
                                         {/* Montos */}
                                         <Grid item xs={12} md={6}>
                                             <TextField
@@ -264,9 +292,9 @@ export const RegisterPayment: React.FC = () => {
                                         type="submit"
                                         variant="contained"
                                         fullWidth
-                                        disabled={!selectedInvoice || !amount || !paymentDate}
+                                        disabled={!selectedInvoice || !amount || !paymentDate || isSubmitting}
                                         sx={{ bgcolor: '#E31C79', '&:hover': { bgcolor: '#C4156A' } }}
-                                    >Registrar Pago</Button>
+                                    >{isSubmitting ? 'Registrando...' : 'Registrar Pago'}</Button>
                                 </Grid>
                             </Grid>
                         </Box>

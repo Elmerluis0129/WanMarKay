@@ -43,9 +43,28 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
     onInvoicesChange
 }) => {
     const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
+    // Contador animado del total de facturas
+    const [displayCount, setDisplayCount] = useState(0);
     useEffect(() => {
         setInvoices(initialInvoices);
     }, [initialInvoices]);
+    // Animar conteo del total al montar o cuando cambian las facturas
+    useEffect(() => {
+        const total = invoices.length;
+        let current = 0;
+        const duration = 1000; // ms
+        const step = 50; // ms
+        const increment = Math.ceil(total / (duration / step));
+        const timer = setInterval(() => {
+            current += increment;
+            if (current >= total) {
+                current = total;
+                clearInterval(timer);
+            }
+            setDisplayCount(current);
+        }, step);
+        return () => clearInterval(timer);
+    }, [invoices.length]);
 
     const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
     useEffect(() => {
@@ -170,8 +189,11 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
 
     return (
         <Box>
-            <Typography variant="h5" sx={{ color: '#E31C79', mb: 3 }}>
+            <Typography variant="h5" sx={{ color: '#E31C79', mb: 1 }}>
                 {title}
+            </Typography>
+            <Typography variant="h6" sx={{ mb: 3 }}>
+                Total de facturas: {displayCount}
             </Typography>
             <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
                 <Grid container spacing={2} alignItems="center">
@@ -239,6 +261,7 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
                 <Table>
                     <TableHead>
                         <TableRow>
+                            <TableCell>#</TableCell>
                             <TableCell>No. Factura</TableCell>
                             <TableCell>Fecha</TableCell>
                             <TableCell>Cliente</TableCell>
@@ -250,15 +273,17 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {filteredInvoices.map((invoice) => (
+                        {filteredInvoices.map((invoice, index) => (
                             <TableRow 
                                 key={invoice.id}
                                 sx={{
+                                    backgroundColor: index % 2 === 0 ? '#ffffff' : '#f5f5f5',
                                     '&:hover': {
                                         backgroundColor: 'rgba(227, 28, 121, 0.04)',
                                     }
                                 }}
                             >
+                                <TableCell sx={{ whiteSpace: 'nowrap' }}>{index + 1}</TableCell>
                                 <TableCell>{invoice.invoiceNumber}</TableCell>
                                 <TableCell>
                                     {invoice.date}
@@ -300,10 +325,10 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
                                     )}
                                 </TableCell>
                                 <TableCell align="right">
-                                    RD$ {invoice.total.toFixed(2)}
+                                    RD$ {invoice.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </TableCell>
                                 <TableCell align="right">
-                                    RD$ {invoice.remainingAmount.toFixed(2)}
+                                    RD$ {invoice.remainingAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </TableCell>
                                 <TableCell align="center">
                                     <IconButton
