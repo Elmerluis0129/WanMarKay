@@ -24,7 +24,9 @@ import {
     DialogContent,
     DialogActions,
     Alert,
-    TextField
+    TextField,
+    InputAdornment,
+    Snackbar
 } from '@mui/material';
 import { Invoice, Payment } from '../../types/invoice';
 import { auth } from '../../services/auth';
@@ -34,6 +36,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { addFrequency, calculateDaysRemaining } from '../../utils/dateUtils';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { computeInvoiceStatus } from '../../utils/statusUtils';
 
 interface PaymentDetailsModalProps {
     open: boolean;
@@ -87,22 +90,40 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
     const isAdmin = auth.getCurrentUser()?.role === 'admin';
     const pdfRef = useRef<HTMLDivElement>(null);
     const [paymentHistory, setPaymentHistory] = useState<Payment[]>([]);
+    // Control de tiempo para recalcular estado
+    const [now, setNow] = useState<Date>(new Date());
+    // State para porcentaje y monto fijo de mora
+    const [lateFee, setLateFee] = useState<number>(0);
+    const [lateFeeAmount, setLateFeeAmount] = useState<number>(0);
+    // Estados para feedback de registro de pago
+    const [snackbarOpen, setSnackbarOpen] = useState(false);
+    const [snackbarMessage, setSnackbarMessage] = useState('');
+    const [snackbarSeverity, setSnackbarSeverity] = useState<'success'|'error'>('error');
 
+    // When invoice changes, reset editedInvoice and invoiceSignedUrl
     useEffect(() => {
         if (invoice) {
-            setSelectedStatus(invoice.status);
             setEditedInvoice(invoice);
             setIsEditing(false);
-            // Usar directamente la URL firmada guardada en attachment
             setInvoiceSignedUrl(invoice.attachment || null);
+            // Recalculate status initially
+            setSelectedStatus(computeInvoiceStatus(invoice));
+            // Inicializar mora desde invoice
+            setLateFee(invoice.lateFeePercentage ?? 0);
+            setLateFeeAmount(invoice.lateFeeAmount ?? 0);
         }
     }, [invoice]);
-
+    // Recalculate status every minute
     useEffect(() => {
         if (invoice) {
-            setSelectedStatus(invoice.status);
+            setSelectedStatus(computeInvoiceStatus(invoice));
         }
-    }, [invoice]);
+    }, [invoice, now]);
+    // Update now each minute
+    useEffect(() => {
+        const id = setInterval(() => setNow(new Date()), 60 * 1000);
+        return () => clearInterval(id);
+    }, []);
 
     useEffect(() => {
         if (invoice?.id) {
@@ -190,43 +211,53 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
 
     // Función para registrar el pago de la siguiente cuota
     const registerPayment = async () => {
-        if (!invoice.paymentPlan) return;
-        const plan = invoice.paymentPlan;
-        const installmentNumber = plan.paidInstallments + 1;
-        const amount = plan.installmentAmount;
-        const paymentDate = new Date().toISOString();
-        const newPayment: Payment = {
-            id: uuidv4(),
-            date: paymentDate,
-            amount,
-            installmentNumber
-        };
-        // Calcular estado según si está a tiempo o retrasado
-        const dueDate = new Date(plan.nextPaymentDate!);
-        const today = new Date();
-        const diffTime = dueDate.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        const statusForPayment = diffDays < 0 ? 'delayed' : 'on_time';
+        try {
+            if (!invoice.paymentPlan) return;
+            const plan = invoice.paymentPlan;
+            const installmentNumber = plan.paidInstallments + 1;
+            const amount = plan.installmentAmount;
+            const paymentDate = new Date().toISOString();
+            const newPayment: Payment = {
+                id: uuidv4(),
+                date: paymentDate,
+                amount,
+                installmentNumber
+            };
+            // Calcular estado según si está a tiempo o retrasado
+            const dueDate = new Date(plan.nextPaymentDate!);
+            const today = new Date();
+            const diffTime = dueDate.getTime() - today.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const statusForPayment = diffDays < 0 ? 'delayed' : 'on_time';
 
-        // Registrar el pago en la tabla de pagos
-        await paymentService.registerPayment(invoice.id, newPayment);
-        const updatedInvoice: Invoice = {
-            ...invoice,
-            payments: [...(invoice.payments ?? []), newPayment],
-            paymentPlan: {
-                ...plan,
-                paidInstallments: installmentNumber,
-                nextPaymentDate: installmentNumber < plan.totalInstallments ? (() => {
-                    return addFrequency(new Date(plan.nextPaymentDate!), plan.frequency).toISOString();
-                })() : undefined
-            },
-            remainingAmount: invoice.remainingAmount - amount,
-            status: installmentNumber >= plan.totalInstallments ? 'paid' : statusForPayment
-        };
-        await invoiceService.updateInvoice(updatedInvoice);
-        if (onPaymentRegistered) onPaymentRegistered(updatedInvoice);
-        if (onStatusChange) onStatusChange();
-        setPaymentDialog({ open: false });
+            // Registrar el pago en la tabla de pagos
+            await paymentService.registerPayment(invoice.id, newPayment);
+            const updatedInvoice: Invoice = {
+                ...invoice,
+                payments: [...(invoice.payments ?? []), newPayment],
+                paymentPlan: {
+                    ...plan,
+                    paidInstallments: installmentNumber,
+                    nextPaymentDate: installmentNumber < plan.totalInstallments ? (() => {
+                        return addFrequency(new Date(plan.nextPaymentDate!), plan.frequency).toISOString();
+                    })() : undefined
+                },
+                remainingAmount: invoice.remainingAmount - amount,
+                status: installmentNumber >= plan.totalInstallments ? 'paid' : statusForPayment
+            };
+            await invoiceService.updateInvoice(updatedInvoice);
+            if (onPaymentRegistered) onPaymentRegistered(updatedInvoice);
+            if (onStatusChange) onStatusChange();
+            setSnackbarMessage('Pago registrado correctamente');
+            setSnackbarSeverity('success');
+            setSnackbarOpen(true);
+            setPaymentDialog({ open: false });
+        } catch (error: any) {
+            console.error('Error registrando pago', error);
+            setSnackbarMessage('Fecha inválida. No se pudo registrar el pago.');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+        }
     };
 
     const handleExportPDF = async () => {
@@ -253,6 +284,18 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
         const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
         pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
         pdf.save(`factura_${invoice.invoiceNumber}.pdf`);
+    };
+
+    // Aplica y guarda el porcentaje y monto fijo de mora
+    const applyLateFee = async () => {
+        if (!invoice) return;
+        const updatedInvoice = {
+            ...invoice,
+            lateFeePercentage: lateFee,
+            lateFeeAmount: lateFeeAmount
+        };
+        await invoiceService.updateInvoice(updatedInvoice);
+        if (onStatusChange) onStatusChange();
     };
 
     return (
@@ -296,7 +339,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                       </Select>
                     </FormControl>
                   ) : (
-                    <Chip label={getStatusLabel(invoice.status)} color={getStatusColor(invoice.status)} />
+                    <Chip label={getStatusLabel(selectedStatus)} color={getStatusColor(selectedStatus)} />
                   )}
                   <Typography><strong>Cliente:</strong> {invoice.clientName}</Typography>
                   <Typography><strong>Fecha:</strong> {new Date(invoice.date).toLocaleDateString()}</Typography>
@@ -335,7 +378,34 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                     </>
                   )}
                   <Typography><strong>Total:</strong> RD$ {invoice.total.toFixed(2)}</Typography>
+                  <Typography><strong>Descuento:</strong> {invoice.discountPercentage?.toFixed(2) ?? 0}%</Typography>
                   <Typography><strong>Pendiente:</strong> RD$ {invoice.remainingAmount.toFixed(2)}</Typography>
+                  {isAdmin && (
+                    <Box sx={{ display:'flex', alignItems:'center', gap:1, mt:1 }}>
+                      <TextField
+                        label="Mora (%)"
+                        type="number"
+                        size="small"
+                        value={lateFee}
+                        onChange={e => setLateFee(Number(e.target.value))}
+                        InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                      />
+                      <TextField
+                        label="Mora RD$"
+                        type="number"
+                        size="small"
+                        value={lateFeeAmount}
+                        onChange={e => setLateFeeAmount(Number(e.target.value))}
+                        InputProps={{ endAdornment: <InputAdornment position="end">RD$</InputAdornment> }}
+                      />
+                      <Button variant="outlined" size="small" onClick={applyLateFee}>Aplicar Mora</Button>
+                    </Box>
+                  )}
+                  {(lateFee > 0 || lateFeeAmount > 0) && (
+                    <Typography sx={{ mt:1 }}>
+                      <strong>Total pendiente (con mora):</strong> RD$ {((invoice.remainingAmount * (1 + lateFee/100)) + lateFeeAmount).toFixed(2)}
+                    </Typography>
+                  )}
                 </Stack>
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -454,6 +524,21 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
             )}
           </DialogContent>
         </Dialog>
+        {/* Snackbar para feedback de pago */}
+        <Snackbar
+          open={snackbarOpen}
+          autoHideDuration={4000}
+          onClose={() => setSnackbarOpen(false)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert
+            onClose={() => setSnackbarOpen(false)}
+            severity={snackbarSeverity}
+            sx={{ width: '100%' }}
+          >
+            {snackbarMessage}
+          </Alert>
+        </Snackbar>
         </>
     );
 }; 

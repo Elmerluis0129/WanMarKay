@@ -1,30 +1,40 @@
 import { supabase } from './supabase';
 import { Invoice } from '../types/invoice';
+import { computeInvoiceStatus } from '../utils/statusUtils';
 
 export const invoiceService = {
   getInvoices: async (): Promise<Invoice[]> => {
     const { data, error } = await supabase.from('invoices').select('*');
     if (error) throw error;
-    return (data || []).map((d: any) => ({
-      id: d.id,
-      invoiceNumber: d.invoice_number,
-      date: d.date,
-      clientId: d.client_id,
-      clientName: d.client_name,
-      address: d.address || undefined,
-      cedula: d.cedula || undefined,
-      phone: d.phone || undefined,
-      attachment: d.attachment || undefined,
-      items: d.items,
-      subtotal: d.subtotal,
-      total: d.total,
-      remainingAmount: d.remaining_amount,
-      status: d.status,
-      paymentType: d.payment_type,
-      paymentPlan: d.payment_plan,
-      payments: d.payments,
-      nextPaymentDue: d.next_payment_due || undefined,
-    } as Invoice));
+    return (data || []).map((d: any) => {
+      const inv: Invoice = {
+        id: d.id,
+        invoiceNumber: d.invoice_number,
+        date: d.date,
+        clientId: d.client_id,
+        clientName: d.client_name,
+        address: d.address || undefined,
+        cedula: d.cedula || undefined,
+        phone: d.phone || undefined,
+        attachment: d.attachment || undefined,
+        items: d.items,
+        subtotal: d.subtotal,
+        total: d.total,
+        remainingAmount: d.remaining_amount,
+        status: d.status,
+        discountPercentage: d.discount_percentage ?? 0,
+        lateFeePercentage: d.late_fee_percentage ?? 0,
+        lateFeeAmount: d.late_fee_amount ?? 0,
+        paymentType: d.payment_type,
+        paymentPlan: d.payment_plan,
+        payments: d.payments,
+        nextPaymentDue: d.next_payment_due || undefined,
+      } as Invoice;
+      if (inv.paymentType === 'credit') {
+        inv.status = computeInvoiceStatus(inv);
+      }
+      return inv;
+    });
   },
 
   addInvoice: async (invoice: Invoice): Promise<Invoice> => {
@@ -44,6 +54,9 @@ export const invoiceService = {
       total: invoice.total,
       remaining_amount: invoice.remainingAmount,
       status: invoice.status,
+      discount_percentage: invoice.discountPercentage ?? 0,
+      late_fee_percentage: invoice.lateFeePercentage ?? 0,
+      late_fee_amount: invoice.lateFeeAmount ?? 0,
       payment_type: invoice.paymentType,
       payment_plan: invoice.paymentPlan,
       next_payment_due: invoice.nextPaymentDue
@@ -71,6 +84,9 @@ export const invoiceService = {
         total: d.total,
         remainingAmount: d.remaining_amount,
         status: d.status,
+        discountPercentage: d.discount_percentage,
+        lateFeePercentage: d.late_fee_percentage,
+        lateFeeAmount: d.late_fee_amount,
         paymentType: d.payment_type,
         paymentPlan: d.payment_plan,
         payments: d.payments,
@@ -95,6 +111,9 @@ export const invoiceService = {
       total: invoice.total,
       remaining_amount: invoice.remainingAmount,
       status: invoice.status,
+      discount_percentage: invoice.discountPercentage ?? 0,
+      late_fee_percentage: invoice.lateFeePercentage ?? 0,
+      late_fee_amount: invoice.lateFeeAmount ?? 0,
       payment_type: invoice.paymentType,
       payment_plan: invoice.paymentPlan,
       next_payment_due: invoice.nextPaymentDue
@@ -123,6 +142,9 @@ export const invoiceService = {
         total: d.total,
         remainingAmount: d.remaining_amount,
         status: d.status,
+        discountPercentage: d.discount_percentage,
+        lateFeePercentage: d.late_fee_percentage,
+        lateFeeAmount: d.late_fee_amount,
         paymentType: d.payment_type,
         paymentPlan: d.payment_plan,
         payments: d.payments,
@@ -137,25 +159,34 @@ export const invoiceService = {
       .select('*')
       .eq('client_id', clientId);
     if (error) throw error;
-    return (data || []).map((d: any) => ({
-      id: d.id,
-      invoiceNumber: d.invoice_number,
-      date: d.date,
-      clientId: d.client_id,
-      clientName: d.client_name,
-      address: d.address || undefined,
-      cedula: d.cedula || undefined,
-      phone: d.phone || undefined,
-      attachment: d.attachment || undefined,
-      items: d.items,
-      subtotal: d.subtotal,
-      total: d.total,
-      remainingAmount: d.remaining_amount,
-      status: d.status,
-      paymentType: d.payment_type,
-      paymentPlan: d.payment_plan,
-      payments: d.payments,
-      nextPaymentDue: d.next_payment_due || undefined,
-    } as Invoice));
+    return (data || []).map((d: any) => {
+      const inv: Invoice = {
+        id: d.id,
+        invoiceNumber: d.invoice_number,
+        date: d.date,
+        clientId: d.client_id,
+        clientName: d.client_name,
+        address: d.address || undefined,
+        cedula: d.cedula || undefined,
+        phone: d.phone || undefined,
+        attachment: d.attachment || undefined,
+        items: d.items,
+        subtotal: d.subtotal,
+        total: d.total,
+        remainingAmount: d.remaining_amount,
+        status: d.status,
+        discountPercentage: d.discount_percentage ?? 0,
+        lateFeePercentage: d.late_fee_percentage ?? 0,
+        lateFeeAmount: d.late_fee_amount ?? 0,
+        paymentType: d.payment_type,
+        paymentPlan: d.payment_plan,
+        payments: d.payments,
+        nextPaymentDue: d.next_payment_due || undefined,
+      } as Invoice;
+      if (inv.paymentType === 'credit') {
+        inv.status = computeInvoiceStatus(inv);
+      }
+      return inv;
+    });
   },
 }; 

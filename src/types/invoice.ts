@@ -52,6 +52,10 @@ export interface Invoice {
     total: number;
     remainingAmount: number;
     status: 'pending' | 'paid' | 'delayed' | 'cancelled' | 'on_time';
+    discountPercentage?: number;
+    lateFeePercentage?: number;
+    // Monto fijo de mora en RD$
+    lateFeeAmount?: number;
     paymentType: 'cash' | 'credit';
     paymentPlan?: PaymentPlan;
     payments?: Payment[];

@@ -67,6 +67,14 @@ const formatPhone = (value: string = ''): string => {
     return value;
 };
 
+// Helper para formatear fecha a DD/MM/YYYY para input
+const formatDateInput = (date: Date): string => {
+    const d = date.getDate().toString().padStart(2, '0');
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const y = date.getFullYear();
+    return `${d}/${m}/${y}`;
+};
+
 export const CreateInvoice: React.FC = () => {
     const [formData, setFormData] = useState({
         invoiceNumber: '',
@@ -94,7 +102,7 @@ export const CreateInvoice: React.FC = () => {
 
     const [paymentType, setPaymentType] = useState<'cash' | 'credit'>('cash');
     const [paymentPlan, setPaymentPlan] = useState<Partial<PaymentPlan>>({
-        frequency: 'monthly',
+        frequency: 'biweekly',
         totalInstallments: 1,
         installmentAmount: 0,
         startDate: new Date().toISOString().split('T')[0],
@@ -129,6 +137,9 @@ export const CreateInvoice: React.FC = () => {
     // Handler para el input file
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
+        if (file) {
+            console.log('🖼️ Archivo seleccionado:', file.name, file.type, file.size, file);
+        }
         if (file) {
             setAttachmentFile(file);
             const reader = new FileReader();
@@ -220,101 +231,150 @@ export const CreateInvoice: React.FC = () => {
     };
 
     const saveInvoice = async () => {
-        // Generar ID y subir imagen si existe
-        const id = uuidv4();
-        let publicUrl: string | undefined;
-        if (attachmentFile) {
-            // Subir el archivo y obtener el path en el bucket
-            const path = await storageService.uploadFacturaImage(attachmentFile, id);
-            // Generar un signed URL válido por 1 año
-            publicUrl = await storageService.createSignedUrl(path, 31536000);
-        }
-        const { subtotal, total } = calculateTotal();
-        const currentUser = auth.getCurrentUser();
-        const startDate = new Date(paymentPlan.startDate || new Date());
-        let nextPaymentDate = new Date(startDate);
-        switch (paymentPlan.frequency) {
-            case 'weekly': nextPaymentDate.setDate(startDate.getDate() + 7); break;
-            case 'biweekly': nextPaymentDate.setDate(startDate.getDate() + 14); break;
-            case 'monthly': nextPaymentDate.setMonth(startDate.getMonth() + 1); break;
-            default: nextPaymentDate.setMonth(startDate.getMonth() + 1);
-        }
-        const today = new Date();
-        const diffDays = Math.ceil((nextPaymentDate.getTime() - today.getTime())/(1000*60*60*24));
-        const initialStatus = diffDays < 0 ? 'delayed' : 'pending';
-        const newInvoice: Invoice = {
-            id,
-            invoiceNumber: formData.invoiceNumber,
-            date: formData.date,
-            clientName: selectedClient!.fullName,
-            clientId: selectedClient!.id,
-            address: formData.address || undefined,
-            cedula: formData.cedula || undefined,
-            phone: formData.phone || undefined,
-            ...(publicUrl && { attachment: publicUrl }),
-            items, subtotal, total,
-            remainingAmount: total, status: initialStatus, paymentType, payments: [],
-            ...(paymentType === 'credit' && { paymentPlan: { ...paymentPlan, paidInstallments: 0, startDate: startDate.toISOString(), nextPaymentDate: nextPaymentDate.toISOString() } as PaymentPlan })
-        };
-        // Actualiza datos del usuario si alguno de sus campos estaba vacío en la base de datos
-        if (selectedClient) {
-            const updates: Partial<User> = {};
-            if (!selectedClient.address && formData.address) updates.address = formData.address;
-            if (!selectedClient.cedula && formData.cedula) {
-                updates.cedula = formData.cedula.replace(/-/g, '');
+        try {
+            // La fecha ya viene en ISO YYYY-MM-DD desde el input nativo
+            const isoDate = formData.date;
+            // Generar ID y subir imagen si existe
+            const id = uuidv4();
+            let publicUrl: string | undefined;
+            if (attachmentFile) {
+                // Subir el archivo a Imgur y obtener la URL pública corta
+                publicUrl = await storageService.uploadFacturaImage(attachmentFile);
             }
-            if (!selectedClient.phone && formData.phone) {
-                updates.phone = formData.phone.replace(/\D/g, '');
+            const { subtotal, total } = calculateTotal();
+            const currentUser = auth.getCurrentUser();
+            const startDate = new Date(paymentPlan.startDate || new Date());
+            let nextPaymentDate = new Date(startDate);
+            switch (paymentPlan.frequency) {
+                case 'weekly': nextPaymentDate.setDate(startDate.getDate() + 7); break;
+                case 'biweekly': nextPaymentDate.setDate(startDate.getDate() + 14); break;
+                case 'monthly': nextPaymentDate.setMonth(startDate.getMonth() + 1); break;
+                default: nextPaymentDate.setMonth(startDate.getMonth() + 1);
             }
-            if (Object.keys(updates).length > 0) {
-                await userService.updateUser({ ...selectedClient, ...updates });
+            const today = new Date();
+            const diffDays = Math.ceil((nextPaymentDate.getTime() - today.getTime())/(1000*60*60*24));
+            const initialStatus = diffDays < 0 ? 'delayed' : 'pending';
+            const newInvoice: Invoice = {
+                id,
+                invoiceNumber: formData.invoiceNumber,
+                date: isoDate,
+                clientName: selectedClient!.fullName,
+                clientId: selectedClient!.id,
+                address: formData.address || undefined,
+                cedula: formData.cedula || undefined,
+                phone: formData.phone || undefined,
+                ...(publicUrl && { attachment: publicUrl }),
+                items, subtotal, total,
+                remainingAmount: total,
+                status: initialStatus,
+                paymentType,
+                discountPercentage: discountType === 'percentage' ? discountValue : (discountValue / total * 100),
+                lateFeePercentage: 0,
+                payments: [],
+                ...(paymentType === 'credit' && { paymentPlan: { ...paymentPlan, paidInstallments: 0, startDate: startDate.toISOString(), nextPaymentDate: nextPaymentDate.toISOString() } as PaymentPlan })
+            };
+            // Actualiza datos del usuario si alguno de sus campos estaba vacío en la base de datos
+            if (selectedClient) {
+                const updates: Partial<User> = {};
+                if (!selectedClient.address && formData.address) updates.address = formData.address;
+                if (!selectedClient.cedula && formData.cedula) {
+                    updates.cedula = formData.cedula.replace(/-/g, '');
+                }
+                if (!selectedClient.phone && formData.phone) {
+                    updates.phone = formData.phone.replace(/\D/g, '');
+                }
+                if (Object.keys(updates).length > 0) {
+                    await userService.updateUser({ ...selectedClient, ...updates });
+                }
             }
+            // Debug: mostrar en consola el objeto que se insertará
+            console.log('📤 Payload de nueva factura:', {
+                id: newInvoice.id,
+                invoice_number: newInvoice.invoiceNumber,
+                date: newInvoice.date,
+                client_id: newInvoice.clientId,
+                client_name: newInvoice.clientName,
+                address: newInvoice.address,
+                cedula: newInvoice.cedula,
+                phone: newInvoice.phone,
+                attachment: publicUrl,
+                items: newInvoice.items,
+                subtotal: newInvoice.subtotal,
+                total: newInvoice.total,
+                remaining_amount: newInvoice.remainingAmount,
+                status: newInvoice.status,
+                payment_type: newInvoice.paymentType,
+                payment_plan: newInvoice.paymentPlan,
+                next_payment_due: newInvoice.paymentPlan?.nextPaymentDate
+            });
+            await invoiceService.addInvoice(newInvoice);
+            setSnackbarMessage('Factura creada exitosamente');
+            setSnackbarSeverity('success');
+            setSnackbarOpen(true);
+            // reset form
+            setFormData({ invoiceNumber:'', date:new Date().toISOString().split('T')[0], address:'', cedula:'', phone:'' });
+            setSelectedClient(null); setItems([]); setPaymentType('cash');
+            setPaymentPlan({ frequency:'biweekly', totalInstallments:1, installmentAmount:0, startDate:new Date().toISOString().split('T')[0]});
+            setAttachmentFile(null); setAttachmentPreview(null);
+        } catch (error: any) {
+            console.error('Error creando factura', error);
+            const msg = error?.message || JSON.stringify(error);
+            setSnackbarMessage(`Error creando factura: ${msg}`);
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
         }
-        await invoiceService.addInvoice(newInvoice);
-        setSnackbarMessage('Factura creada exitosamente');
-        setSnackbarSeverity('success');
-        setSnackbarOpen(true);
-        // reset form
-        setFormData({ invoiceNumber:'', date:new Date().toISOString().split('T')[0], address:'', cedula:'', phone:'' });
-        setSelectedClient(null); setItems([]); setPaymentType('cash');
-        setPaymentPlan({ frequency:'monthly', totalInstallments:1, installmentAmount:0, startDate:new Date().toISOString().split('T')[0]});
-        setAttachmentFile(null); setAttachmentPreview(null);
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.cedula) { 
-            setSnackbarMessage('La cédula es obligatoria'); setSnackbarSeverity('error'); setSnackbarOpen(true);
-            return;
+        try {
+            if (!formData.cedula) { 
+                setSnackbarMessage('La cédula es obligatoria'); setSnackbarSeverity('error'); setSnackbarOpen(true);
+                return;
+            }
+            if (!formData.phone) { 
+                setSnackbarMessage('El teléfono es obligatorio'); setSnackbarSeverity('error'); setSnackbarOpen(true);
+                return;
+            }
+            if (items.length === 0) { 
+                setSnackbarMessage('Debe agregar al menos un producto'); setSnackbarSeverity('error'); setSnackbarOpen(true);
+                return;
+            }
+            if (!formData.invoiceNumber) { 
+                setSnackbarMessage('El número de factura es obligatorio'); setSnackbarSeverity('error'); setSnackbarOpen(true);
+                return;
+            }
+            if (!selectedClient) { 
+                setSnackbarMessage('Por favor seleccione un cliente'); setSnackbarSeverity('error'); setSnackbarOpen(true);
+                return;
+            }
+            if (!attachmentPreview) {
+                setOpenNoImageDialog(true);
+                return;
+            }
+            await saveInvoice();
+        } catch (error: any) {
+            console.error('Error al crear factura', error);
+            const msg = error?.message || JSON.stringify(error);
+            setSnackbarMessage(`Error al crear factura: ${msg}`);
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
         }
-        if (!formData.phone) { 
-            setSnackbarMessage('El teléfono es obligatorio'); setSnackbarSeverity('error'); setSnackbarOpen(true);
-            return;
-        }
-        if (items.length === 0) { 
-            setSnackbarMessage('Debe agregar al menos un producto'); setSnackbarSeverity('error'); setSnackbarOpen(true);
-            return;
-        }
-        if (!formData.invoiceNumber) { 
-            setSnackbarMessage('El número de factura es obligatorio'); setSnackbarSeverity('error'); setSnackbarOpen(true);
-            return;
-        }
-        if (!selectedClient) { 
-            setSnackbarMessage('Por favor seleccione un cliente'); setSnackbarSeverity('error'); setSnackbarOpen(true);
-            return;
-        }
-        if (!attachmentPreview) {
-            setOpenNoImageDialog(true);
-            return;
-        }
-        saveInvoice();
     };
 
     const totals = calculateTotal();
 
     const confirmWithoutImage = async () => {
         setOpenNoImageDialog(false);
-        await saveInvoice();
+        try {
+            await saveInvoice();
+        } catch (error: any) {
+            console.error('Error creando factura sin imagen', error);
+            const msg = error?.message || JSON.stringify(error);
+            setSnackbarMessage(`Error creando factura: ${msg}`);
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+        }
     };
 
     // Validar en tiempo real si el número de factura ya existe
@@ -405,6 +465,7 @@ export const CreateInvoice: React.FC = () => {
                                     />
                                 </FormControl>
                                 <TextField
+                                    fullWidth
                                     required
                                     type="date"
                                     name="date"
@@ -412,6 +473,7 @@ export const CreateInvoice: React.FC = () => {
                                     value={formData.date}
                                     onChange={handleChange}
                                     InputLabelProps={{ shrink: true }}
+                                    inputProps={{ lang: 'es-ES' }}
                                 />
                             </Box>
 
@@ -635,8 +697,6 @@ export const CreateInvoice: React.FC = () => {
                                                 label="Frecuencia de Pago"
                                                 onChange={handlePaymentPlanChange}
                                             >
-                                                <MenuItem value="daily">Diario</MenuItem>
-                                                <MenuItem value="weekly">Semanal</MenuItem>
                                                 <MenuItem value="biweekly">Quincenal</MenuItem>
                                                 <MenuItem value="monthly">Mensual</MenuItem>
                                             </Select>

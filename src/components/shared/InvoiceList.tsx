@@ -23,14 +23,18 @@ import {
     Alert,
     TextField,
     InputLabel,
-    Grid
+    Grid,
+    InputAdornment
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import SearchIcon from '@mui/icons-material/Search';
 import { Invoice } from '../../types/invoice';
 import { PaymentDetailsModal } from './PaymentDetailsModal';
 import { invoiceService } from '../../services/invoiceService';
 import { auth } from '../../services/auth';
+import { computeInvoiceStatus } from '../../utils/statusUtils';
 
+// Props para el componente InvoiceList
 interface InvoiceListProps {
     invoices: Invoice[];
     title?: string;
@@ -43,11 +47,23 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
     onInvoicesChange
 }) => {
     const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
+    // Estado para desencadenar recálculo cada minuto
+    const [now, setNow] = useState<Date>(new Date());
+    // Búsqueda por número de factura o cliente
+    const [searchQuery, setSearchQuery] = useState<string>('');
+
     // Contador animado del total de facturas
     const [displayCount, setDisplayCount] = useState(0);
+    // Efecto para actualizar 'now' cada minuto y disparar recálculo de estado
+    useEffect(() => {
+        const id = setInterval(() => setNow(new Date()), 60 * 1000);
+        return () => clearInterval(id);
+    }, []);
+
     useEffect(() => {
         setInvoices(initialInvoices);
-    }, [initialInvoices]);
+    }, [initialInvoices, now]);
+
     // Animar conteo del total al montar o cuando cambian las facturas
     useEffect(() => {
         const total = invoices.length;
@@ -69,10 +85,10 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
     const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
     useEffect(() => {
         if (selectedInvoice) {
-            const updated = initialInvoices.find(inv => inv.id === selectedInvoice.id) || null;
+            const updated = initialInvoices.find((inv: Invoice) => inv.id === selectedInvoice.id) || null;
             setSelectedInvoice(updated);
         }
-    }, [initialInvoices]);
+    }, [initialInvoices, now]);
 
     const [confirmDialog, setConfirmDialog] = useState<{
         open: boolean;
@@ -97,13 +113,24 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
     // Opciones de usuarios (clientes)
     const clientOptions = Array.from(new Set(invoices.map(inv => inv.clientName)));
 
-    // Facturas filtradas según criterios
-    const filteredInvoices = invoices.filter(inv => {
+    // Recalcular estado dinámico basado en now
+    const invoicesWithStatus = invoices.map(inv => {
+        if (inv.paymentType === 'credit' && inv.paymentPlan) {
+            return { ...inv, status: computeInvoiceStatus(inv) };
+        }
+        return inv;
+    });
+    // Facturas filtradas según criterios y búsqueda
+    const filteredInvoices = invoicesWithStatus.filter(inv => {
         return (statusFilter === '' || inv.status === statusFilter)
             && (typeFilter === '' || inv.paymentType === typeFilter)
             && (userFilter === '' || inv.clientName === userFilter)
             && (dateFrom === '' || new Date(inv.date) >= new Date(dateFrom))
-            && (dateTo === '' || new Date(inv.date) <= new Date(dateTo));
+            && (dateTo === '' || new Date(inv.date) <= new Date(dateTo))
+            && (searchQuery === ''
+                || inv.invoiceNumber.includes(searchQuery)
+                || inv.clientName.toLowerCase().includes(searchQuery.toLowerCase())
+            );
     });
 
     const clearFilters = () => {
@@ -197,6 +224,23 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
             </Typography>
             <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
                 <Grid container spacing={2} alignItems="center">
+                    {/* Campo de búsqueda */}
+                    <Grid item xs={12} sm={6} md={3}>
+                        <TextField
+                            fullWidth
+                            size="small"
+                            label="Buscar factura/cliente"
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <SearchIcon />
+                                    </InputAdornment>
+                                )
+                            }}
+                        />
+                    </Grid>
                     <Grid item xs={12} sm={6} md={2}>
                         <FormControl fullWidth size="small" variant="outlined">
                             <InputLabel id="filter-status-label">Estado</InputLabel>
