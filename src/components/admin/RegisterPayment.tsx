@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
     Container,
     Box,
@@ -39,6 +40,8 @@ const formatPhone = (value: string = ''): string => {
 };
 
 export const RegisterPayment: React.FC = () => {
+    const location = useLocation();
+    const invoiceIdFromState = (location.state as any)?.invoiceId;
     const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
     const [amount, setAmount] = useState<string>('');
     const [paymentDate, setPaymentDate] = useState<Date | null>(new Date());
@@ -49,19 +52,30 @@ export const RegisterPayment: React.FC = () => {
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [loadError, setLoadError] = useState<string|null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    // Calcular mora pendiente o 0
+    const pendingLateFee = selectedInvoice?.lateFeeAmount ?? 0;
 
     // Cargar facturas pendientes o en curso
     useEffect(() => {
         (async () => {
             try {
                 const data = await invoiceService.getInvoices();
-                setInvoices(data.filter(inv => inv.status !== 'paid' && inv.status !== 'cancelled'));
+                const pending = data.filter(inv => inv.status !== 'paid' && inv.status !== 'cancelled');
+                setInvoices(pending);
             } catch (err: any) {
                 console.error('Error cargando facturas:', err);
                 setLoadError(err.message || JSON.stringify(err));
             }
         })();
     }, []);
+
+    // Preseleccionar factura si viene en el estado de navegación
+    useEffect(() => {
+        if (invoices.length > 0 && invoiceIdFromState) {
+            const inv = invoices.find(inv => inv.id === invoiceIdFromState);
+            if (inv) setSelectedInvoice(inv);
+        }
+    }, [invoices, invoiceIdFromState]);
 
     if (loadError) {
         return <Alert severity="error">Error al cargar facturas: {loadError}</Alert>;
@@ -81,16 +95,30 @@ export const RegisterPayment: React.FC = () => {
             return;
         }
 
-        if (paymentAmount > selectedInvoice.remainingAmount) {
-            setMessage({ text: 'El monto no puede ser mayor al saldo pendiente', isError: true });
+        // Priorizar cobro de mora
+        const pendingLateFee = selectedInvoice.lateFeeAmount ?? 0;
+        const principalPending = selectedInvoice.remainingAmount;
+        const totalPending = pendingLateFee + principalPending;
+        if (paymentAmount > totalPending) {
+            setMessage({ text: 'El monto no puede ser mayor al total pendiente (principal + mora)', isError: true });
             return;
         }
 
+        // Determinar cómo se aplica el pago: primero mora, luego principal
+        let feePayment = 0;
+        let principalPayment = 0;
+        if (paymentAmount <= pendingLateFee) {
+            feePayment = paymentAmount;
+        } else {
+            feePayment = pendingLateFee;
+            principalPayment = paymentAmount - pendingLateFee;
+        }
         // Crear el nuevo pago
         const newPayment = {
             id: uuidv4(),
             date: paymentDate.toISOString(),
             amount: paymentAmount,
+            lateFeePaid: feePayment,
             installmentNumber: selectedInvoice.payments ? selectedInvoice.payments.length + 1 : 1,
             method,
             attachment: paymentAttachmentPreview || undefined
@@ -101,13 +129,20 @@ export const RegisterPayment: React.FC = () => {
             setIsSubmitting(true);
             // Registrar pago pasando el id de la factura
             await paymentService.registerPayment(selectedInvoice.id, newPayment);
+            // Calcular nuevos montos de mora y principal
+            const newLateFeeRemaining = Math.max(pendingLateFee - feePayment, 0);
+            const newPrincipalRemaining = Math.max(principalPending - principalPayment, 0);
+            const newLateFeePercentage = principalPending > 0 ? (newLateFeeRemaining / principalPending) * 100 : 0;
             const updatedInvoice = {
                 ...selectedInvoice,
-                remainingAmount: selectedInvoice.remainingAmount - paymentAmount,
+                // Actualizar mora y principal pendientes
+                lateFeeAmount: newLateFeeRemaining,
+                lateFeePercentage: newLateFeeRemaining > 0 ? newLateFeePercentage : 0,
+                remainingAmount: newPrincipalRemaining,
                 payments: [...(selectedInvoice.payments || []), newPayment]
             } as Invoice;
             // Actualizar estado de factura
-            if (updatedInvoice.remainingAmount === 0) {
+            if (updatedInvoice.remainingAmount === 0 && (updatedInvoice.lateFeeAmount ?? 0) === 0) {
                 updatedInvoice.status = 'paid';
             } else if (updatedInvoice.payments?.length === 1) {
                 updatedInvoice.status = 'on_time';
@@ -126,7 +161,7 @@ export const RegisterPayment: React.FC = () => {
                 };
             }
             await invoiceService.updateInvoice(updatedInvoice);
-            setMessage({ text: 'Pago registrado exitosamente', isError: false });
+            setMessage({ text: `Pago registrado: RD$ ${feePayment.toFixed(2)} a mora y RD$ ${principalPayment.toFixed(2)} al capital.`, isError: false });
             setSelectedInvoice(null);
             setAmount('');
             setPaymentDate(new Date());
@@ -227,6 +262,23 @@ export const RegisterPayment: React.FC = () => {
                                                 InputProps={{ readOnly: true }}
                                             />
                                         </Grid>
+                                        {pendingLateFee > 0 && (
+                                            <>
+                                                <Grid item xs={12}>
+                                                    <Alert severity="warning">
+                                                        Hay mora pendiente de RD$ {pendingLateFee.toFixed(2)}. Se cobrará primero.
+                                                    </Alert>
+                                                </Grid>
+                                                <Grid item xs={12} md={6}>
+                                                    <TextField
+                                                        fullWidth
+                                                        label="Mora Pendiente"
+                                                        value={`RD$ ${pendingLateFee.toFixed(2)}`}
+                                                        InputProps={{ readOnly: true }}
+                                                    />
+                                                </Grid>
+                                            </>
+                                        )}
                                         {/* Monto a pagar */}
                                         <Grid item xs={12} md={6}>
                                             <TextField

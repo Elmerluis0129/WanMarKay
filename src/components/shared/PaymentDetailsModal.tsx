@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Modal,
     Box,
@@ -36,6 +37,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { addFrequency, calculateDaysRemaining } from '../../utils/dateUtils';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+// @ts-ignore
+import autoTable from 'jspdf-autotable';
 import { computeInvoiceStatus, InvoiceStatusResult } from '../../utils/statusUtils';
 import { calculateLateFeePercentage, calculateLateFeeAmount } from '../../utils/lateFeeUtils';
 import { DialogProps, SnackbarProps } from '@mui/material';
@@ -135,6 +138,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
     const [paymentAttachmentPreview, setPaymentAttachmentPreview] = useState<string | null>(null);
     const pdfRef = useRef<HTMLDivElement>(null);
     const [now, setNow] = useState<Date>(new Date());
+    const navigate = useNavigate();
 
     // When invoice changes, reset editedInvoice and invoiceSignedUrl
     useEffect(() => {
@@ -146,9 +150,6 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
             const statusResult = computeInvoiceStatus(invoice);
             setSelectedStatus(statusResult.status);
             setStatusInfo(statusResult);
-            // Inicializar mora desde invoice
-            setLateFee(invoice.lateFeePercentage ?? 0);
-            setLateFeeAmount(invoice.lateFeeAmount ?? 0);
         }
     }, [invoice]);
     // Efecto para recalcular estado y mora cuando cambia la fecha
@@ -159,10 +160,18 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
             const originalStatus = status;
             setSelectedStatus(status);
             setStatusInfo(statusResult);
-            // Ajustar estados personalizados a los válidos
-            if (status === 'delayed' || status === 'on_time') status = 'overdue';
-            // Calcular mora solo si es una factura al contado y el estado ORIGINAL era 'delayed'
-            if (invoice.paymentType === 'cash' && originalStatus === 'delayed') {
+
+            // Si ya tiene mora guardada, úsala
+            if (
+                typeof invoice.lateFeePercentage === 'number' &&
+                typeof invoice.lateFeeAmount === 'number' &&
+                (invoice.lateFeePercentage > 0 || invoice.lateFeeAmount > 0)
+            ) {
+                setLateFee(invoice.lateFeePercentage);
+                setLateFeeAmount(invoice.lateFeeAmount);
+                setIsLateFeeCalculated(true);
+            } else if (invoice.paymentType === 'cash' && originalStatus === 'delayed') {
+                // Solo calcular automáticamente si no tiene valores guardados
                 const percentage = calculateLateFeePercentage(invoice);
                 const amount = calculateLateFeeAmount(invoice);
                 setLateFee(percentage);
@@ -192,8 +201,20 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
 
     const handleSaveEdit = async () => {
         if (!editedInvoice) return;
-        await invoiceService.updateInvoice(editedInvoice);
-        if (onPaymentRegistered) onPaymentRegistered(editedInvoice);
+        // Calcular el descuento
+        const discount = editedInvoice.total * ((editedInvoice.discountPercentage ?? 0) / 100);
+        // Sumar pagos realizados
+        const pagosRealizados = (editedInvoice.payments ?? []).reduce((sum, p) => sum + (p.amount ?? 0), 0);
+        // Calcular pendiente
+        const pendiente = editedInvoice.total - discount - pagosRealizados;
+        const updatedInvoice = {
+            ...editedInvoice,
+            lateFeePercentage: lateFee,
+            lateFeeAmount: lateFeeAmount,
+            remainingAmount: pendiente < 0 ? 0 : pendiente
+        };
+        await invoiceService.updateInvoice(updatedInvoice);
+        if (onPaymentRegistered) onPaymentRegistered(updatedInvoice);
         setIsEditing(false);
     };
 
@@ -271,6 +292,19 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
             const plan = invoice.paymentPlan;
             const installmentNumber = plan.paidInstallments + 1;
             const amount = plan.installmentAmount;
+            // Priorizar pago de mora
+            const currentLateFee = invoice.lateFeeAmount ?? 0;
+            let feePayment = 0;
+            let principalPayment = amount;
+            if (currentLateFee > 0) {
+                if (amount >= currentLateFee) {
+                    feePayment = currentLateFee;
+                    principalPayment = amount - currentLateFee;
+                } else {
+                    feePayment = amount;
+                    principalPayment = 0;
+                }
+            }
             const paymentDate = new Date().toISOString();
             const newPayment: Payment = {
                 id: uuidv4(),
@@ -297,7 +331,9 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                         return addFrequency(new Date(plan.nextPaymentDate!), plan.frequency).toISOString();
                     })() : undefined
                 },
-                remainingAmount: invoice.remainingAmount - amount,
+                remainingAmount: invoice.remainingAmount - principalPayment,
+                lateFeeAmount: currentLateFee - feePayment,
+                lateFeePercentage: (currentLateFee - feePayment) > 0 ? invoice.lateFeePercentage : 0,
                 status: installmentNumber >= plan.totalInstallments ? 'paid' : statusForPayment
             };
             await invoiceService.updateInvoice(updatedInvoice);
@@ -309,28 +345,109 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
             setPaymentDialog({ open: false, amount: 0, installmentNumber: 0, method: '', attachment: '' });
         } catch (error: any) {
             console.error('Error registrando pago', error);
-            setSnackbarMessage('Fecha inválida. No se pudo registrar el pago.');
+            setSnackbarMessage(error?.message || error?.error || JSON.stringify(error));
             setSnackbarSeverity('error');
             setSnackbarOpen(true);
         }
     };
 
-    const handleExportPDF = async () => {
-        if (!invoice || !pdfRef.current) return;
+    const handleExportPDF = () => {
+        if (!invoice) return;
+        const doc = new jsPDF();
 
-        try {
-            const canvas = await html2canvas(pdfRef.current);
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF();
-            const imgProps = pdf.getImageProperties(imgData);
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        // Colores corporativos
+        const pink: [number, number, number] = [227, 28, 121];
+        const gray: [number, number, number] = [100, 100, 100];
 
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-            pdf.save(`factura_${invoice.invoiceNumber}.pdf`);
-        } catch (error) {
-            console.error('Error al exportar PDF:', error);
+        // Encabezado: Mary Kay y Directora
+        doc.setFontSize(28);
+        doc.setTextColor(0,0,0);
+        doc.text('Mary Kay', 10, 15);
+        doc.setFontSize(10);
+        doc.text('Directora de Belleza independiente', 10, 21);
+
+        // Nombre empresa y datos factura
+        doc.setFontSize(16);
+        doc.setTextColor(pink[0], pink[1], pink[2]);
+        doc.text('Carmen Trinidad Guzmán (Wanda)', 10, 30);
+        doc.setFontSize(10);
+        doc.setTextColor(gray[0], gray[1], gray[2]);
+        doc.text(`Factura No.`, 150, 15);
+        doc.setFontSize(14);
+        doc.setTextColor(pink[0], pink[1], pink[2]);
+        doc.text(`#${invoice.invoiceNumber}`, 180, 15);
+        doc.setFontSize(10);
+        doc.setTextColor(gray[0], gray[1], gray[2]);
+        doc.text(`Fecha: ${new Date(invoice.date).toLocaleDateString()}`, 150, 21);
+
+        // Datos del cliente
+        let y = 38;
+        doc.setFontSize(11);
+        doc.setTextColor(0,0,0);
+        doc.text(`Nombre: ${invoice.clientName}`, 10, y); y += 6;
+        doc.text(`Dirección: ${invoice.address ?? '-'}`, 10, y); y += 6;
+        doc.text(`Cédula: ${formatCedula(invoice.cedula ?? '-')}`, 10, y); y += 6;
+        doc.text(`Teléfono: ${formatPhone(invoice.phone ?? '-')}`, 10, y); y += 6;
+
+        // Tabla de productos
+        autoTable(doc, {
+            startY: y + 2,
+            head: [['CANT.', 'DESCRIPCIÓN', 'PRECIO UNITARIO', 'TOTAL']],
+            body: invoice.items.map(item => [
+                String(item.quantity),
+                item.description,
+                `RD$ ${item.unitPrice.toFixed(2)}`,
+                `RD$ ${item.total.toFixed(2)}`
+            ]),
+            theme: 'grid',
+            headStyles: { fillColor: pink, textColor: 255, fontStyle: 'bold', halign: 'center' },
+            bodyStyles: { halign: 'right' },
+            columnStyles: {
+                0: { halign: 'center', cellWidth: 20 },
+                1: { halign: 'left', cellWidth: 80 },
+                2: { halign: 'right', cellWidth: 40 },
+                3: { halign: 'right', cellWidth: 40 },
+            },
+        });
+        y = (doc as any).lastAutoTable.finalY + 6;
+
+        // Nota
+        doc.setFontSize(10);
+        doc.setTextColor(gray[0], gray[1], gray[2]);
+        doc.text('NOTA: ENVIAR COMPROBANTE DE PAGO', 10, y); y += 8;
+
+        // Subtotales y totales alineados como en la factura física
+        doc.setFontSize(11);
+        doc.setTextColor(0,0,0);
+        const xLabel = 130;
+        const xValue = 190;
+        doc.text('SUB-TOTAL RD$', xLabel, y);
+        doc.text(`${invoice.total.toFixed(2)}`, xValue, y, { align: 'right' }); y += 6;
+        // doc.text('ITBIS', xLabel, y); doc.text('0.00', xValue, y, { align: 'right' }); y += 6;
+        doc.text('TOTAL RD$', xLabel, y);
+        doc.text(`${invoice.total.toFixed(2)}`, xValue, y, { align: 'right' }); y += 8;
+        doc.text(`Descuento: ${invoice.discountPercentage?.toFixed(2) ?? 0}%`, xLabel, y); y += 6;
+        doc.text(`Pendiente: RD$ ${invoice.remainingAmount.toFixed(2)}`, xLabel, y); y += 8;
+        if ((invoice.lateFeeAmount ?? 0) > 0) {
+            doc.text(`Pendiente (con mora): RD$ ${(invoice.remainingAmount + (invoice.lateFeeAmount ?? 0)).toFixed(2)}`, xLabel, y); y += 8;
         }
+
+        // Números de cuenta para transferencias y depósitos
+        doc.setFontSize(12);
+        doc.setTextColor(pink[0], pink[1], pink[2]);
+        doc.text('Cuentas para Transferencias y Depósitos:', 10, y); y += 6;
+        doc.setFontSize(10);
+        doc.setTextColor(0,0,0);
+        doc.text('Banco Popular: 123-456789-0', 10, y); y += 5;
+        doc.text('Banco Reservas: 987-654321-0', 10, y); y += 5;
+        doc.text('Titular: Carmen Trinidad Guzmán', 10, y); y += 8;
+
+        // Espacio para firma
+        doc.setDrawColor(gray[0], gray[1], gray[2]);
+        doc.line(10, y + 10, 80, y + 10);
+        doc.text('Firma', 10, y + 15);
+
+        doc.save(`factura_${invoice.invoiceNumber}.pdf`);
     };
 
     // Aplica y guarda el porcentaje y monto fijo de mora
@@ -351,7 +468,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
             setPaymentDialog({ open: false, amount: 0, installmentNumber: 0, method: '', attachment: '' });
         } catch (error: any) {
             console.error('Error registrando pago', error);
-            setSnackbarMessage('Fecha inválida. No se pudo registrar el pago.');
+            setSnackbarMessage(error?.message || error?.error || JSON.stringify(error));
             setSnackbarSeverity('error');
             setSnackbarOpen(true);
         }
@@ -369,7 +486,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                     {/* Header */}
                     <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
                         <Typography variant="h6">Detalles de Pago - Factura #{invoice?.invoiceNumber}</Typography>
-                        {isAdmin && !isEditing && (
+                        {!isEditing && (
                             <Button variant="outlined" size="small" onClick={() => setIsEditing(true)}>
                                 Editar
                             </Button>
@@ -414,16 +531,20 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                                             fullWidth
                                             size="small"
                                             value={editedInvoice?.cedula || ''}
-                                            onChange={e => setEditedInvoice(prev => prev && { ...prev, cedula: e.target.value })}
+                                            onChange={e => setEditedInvoice(prev => prev && { ...prev, cedula: formatCedula(e.target.value) })}
                                             sx={{ mb: 1 }}
+                                            inputProps={{ maxLength: 13 }}
+                                            helperText="Formato: 000-0000000-0"
                                         />
                                         <TextField
                                             label="Teléfono"
                                             fullWidth
                                             size="small"
                                             value={editedInvoice?.phone || ''}
-                                            onChange={e => setEditedInvoice(prev => prev && { ...prev, phone: e.target.value })}
+                                            onChange={e => setEditedInvoice(prev => prev && { ...prev, phone: formatPhone(e.target.value) })}
                                             sx={{ mb: 1 }}
+                                            inputProps={{ maxLength: 17 }}
+                                            helperText="Formato: +1 (999) 999-9999"
                                         />
                                         <TextField
                                             label="Descuento (%)"
@@ -457,7 +578,15 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                                             fullWidth
                                             size="small"
                                             value={lateFee}
-                                            onChange={e => setLateFee(Number(e.target.value))}
+                                            onChange={e => {
+                                                const porcentaje = Number(e.target.value);
+                                                setLateFee(porcentaje);
+                                                // Calcular el pendiente después de descuento y pagos
+                                                const discount = editedInvoice ? editedInvoice.total * ((editedInvoice.discountPercentage ?? 0) / 100) : 0;
+                                                const pagosRealizados = editedInvoice?.payments?.reduce((sum, p) => sum + (p.amount ?? 0), 0) ?? 0;
+                                                const pendiente = editedInvoice ? editedInvoice.total - discount - pagosRealizados : 0;
+                                                setLateFeeAmount(Number(((pendiente * porcentaje) / 100).toFixed(2)));
+                                            }}
                                             sx={{ mb: 1 }}
                                             InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
                                         />
@@ -467,7 +596,15 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                                             fullWidth
                                             size="small"
                                             value={lateFeeAmount}
-                                            onChange={e => setLateFeeAmount(Number(e.target.value))}
+                                            onChange={e => {
+                                                const value = Number(e.target.value);
+                                                setLateFeeAmount(value);
+                                                // Calcular el pendiente después de descuento y pagos
+                                                const discount = editedInvoice ? editedInvoice.total * ((editedInvoice.discountPercentage ?? 0) / 100) : 0;
+                                                const pagosRealizados = editedInvoice?.payments?.reduce((sum, p) => sum + (p.amount ?? 0), 0) ?? 0;
+                                                const pendiente = editedInvoice ? editedInvoice.total - discount - pagosRealizados : 0;
+                                                setLateFee(pendiente > 0 ? Number(((value / pendiente) * 100).toFixed(2)) : 0);
+                                            }}
                                             sx={{ mb: 1 }}
                                             InputProps={{ endAdornment: <InputAdornment position="end">RD$</InputAdornment> }}
                                         />
@@ -486,6 +623,9 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                                 <Typography><strong>Total:</strong> RD$ {invoice.total.toFixed(2)}</Typography>
                                 <Typography><strong>Descuento:</strong> {invoice.discountPercentage?.toFixed(2) ?? 0}%</Typography>
                                 <Typography><strong>Pendiente:</strong> RD$ {invoice.remainingAmount.toFixed(2)}</Typography>
+                                {(invoice.lateFeeAmount ?? 0) > 0 && (
+                                    <Typography sx={{ mt: 0.5 }}><strong>Pendiente (con mora):</strong> RD$ {(invoice.remainingAmount + (invoice.lateFeeAmount ?? 0)).toFixed(2)}</Typography>
+                                )}
                                 {/* Mostrar mora automáticamente si es contado y está retrasada */}
                                 {invoice.paymentType === 'cash' && invoice.status === 'delayed' && (
                                     <Box sx={{ display:'flex', flexDirection: 'column', gap:1, mt:1 }}>
@@ -495,9 +635,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                                         <Typography>
                                             <strong>Mora aplicada:</strong> {lateFee}% ({lateFeeAmount.toFixed(2)} RD$)
                                         </Typography>
-                                        <Typography>
-                                            <strong>Total pendiente (con mora):</strong> RD$ {((invoice.remainingAmount * (1 + lateFee/100)) + lateFeeAmount).toFixed(2)}
-                                        </Typography>
+                                        
                                     </Box>
                                 )}
                                 {isAdmin && (
@@ -521,11 +659,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                                         <Button variant="outlined" size="small" onClick={applyLateFee}>Aplicar Mora</Button>
                                     </Box>
                                 )}
-                                {(lateFee > 0 || lateFeeAmount > 0) && (
-                                    <Typography sx={{ mt:1 }}>
-                                        <strong>Total pendiente (con mora):</strong> RD$ {((invoice.remainingAmount * (1 + lateFee/100)) + lateFeeAmount).toFixed(2)}
-                                    </Typography>
-                                )}
+                                
                                 {statusInfo.daysRemaining && (
                                     <Typography>
                                         {statusInfo.daysRemaining === 1 ? 'Falta' : 'Faltan'} {statusInfo.daysRemaining} {statusInfo.daysRemaining === 1 ? 'día' : 'días'} para el próximo pago
@@ -608,6 +742,11 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                     {/* Acciones Finales */}
                     <Divider sx={{ my: 2 }} />
                     <Stack direction="row" justifyContent="flex-end" spacing={1}>
+                        {invoice.paymentPlan && (
+                            <Button variant="contained" onClick={() => navigate('/admin/payment/register', { state: { invoiceId: invoice.id } })}>
+                                Registrar Pago
+                            </Button>
+                        )}
                         <Button onClick={handleExportPDF} variant="outlined">Exportar a PDF</Button>
                         <Button onClick={onClose} variant="contained" sx={{ bgcolor:'#E31C79','&:hover':{bgcolor:'#C4156A'} }}>Cerrar</Button>
                     </Stack>
@@ -669,6 +808,49 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                     {snackbarMessage}
                 </Alert>
             </Snackbar>
+            {/* Diálogo de registro de pago */}
+            <Dialog open={paymentDialog.open} onClose={handleClosePaymentDialog} fullWidth maxWidth="sm">
+                <DialogTitle>Registrar Pago</DialogTitle>
+                <DialogContent>
+                    {(invoice.lateFeeAmount ?? 0) > 0 && (
+                        <Alert severity="warning" sx={{ mb: 2 }}>
+                            Hay mora pendiente de RD$ {(invoice.lateFeeAmount ?? 0).toFixed(2)}. Se aplicará primero.
+                        </Alert>
+                    )}
+                    <Typography><strong>Pendiente capital:</strong> RD$ {invoice.remainingAmount.toFixed(2)}</Typography>
+                    <TextField
+                        label="Monto a pagar"
+                        type="number"
+                        fullWidth
+                        value={paymentDialog.amount}
+                        onChange={e => setPaymentDialog(prev => ({ ...prev, amount: Number(e.target.value) }))}
+                        sx={{ mt: 2 }}
+                    />
+                    <TextField
+                        select
+                        label="Método de pago"
+                        fullWidth
+                        value={paymentDialog.method}
+                        onChange={e => setPaymentDialog(prev => ({ ...prev, method: e.target.value }))}
+                        sx={{ mt: 2 }}
+                    >
+                        <MenuItem value="cash">Efectivo</MenuItem>
+                        <MenuItem value="transfer">Transferencia</MenuItem>
+                        <MenuItem value="deposit">Depósito</MenuItem>
+                    </TextField>
+                    <Button variant="outlined" component="label" sx={{ mt: 2 }}>
+                        Adjuntar comprobante
+                        <input type="file" hidden onChange={handlePaymentFileChange} />
+                    </Button>
+                    {paymentAttachmentPreview && (
+                        <Box component="img" src={paymentAttachmentPreview} alt="Comprobante" sx={{ width: '100%', mt: 1 }} />
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={registerPayment} disabled={paymentDialog.amount <= 0}>Registrar</Button>
+                    <Button onClick={handleClosePaymentDialog}>Cancelar</Button>
+                </DialogActions>
+            </Dialog>
         </>
     );
 }

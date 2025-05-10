@@ -87,6 +87,8 @@ export const PaymentList: React.FC = () => {
                   <TableCell>Factura</TableCell>
                   <TableCell>Fecha</TableCell>
                   <TableCell>Monto</TableCell>
+                  <TableCell>Mora Pagada</TableCell>
+                  <TableCell>Capital Pagado</TableCell>
                   <TableCell>Cuota N°</TableCell>
                   <TableCell>Método</TableCell>
                   <TableCell>Registrado por</TableCell>
@@ -104,6 +106,8 @@ export const PaymentList: React.FC = () => {
                     <TableCell>{highlightText(p.invoiceNumber ?? '-', filterText)}</TableCell>
                     <TableCell>{p.date}</TableCell>
                     <TableCell>{p.amount}</TableCell>
+                    <TableCell>{p.lateFeePaid?.toFixed(2) ?? '0.00'}</TableCell>
+                    <TableCell>{(p.amount - (p.lateFeePaid ?? 0)).toFixed(2)}</TableCell>
                     <TableCell>{p.installmentNumber}</TableCell>
                     <TableCell>{p.method}</TableCell>
                     <TableCell>{highlightText(p.createdByName ?? '-', filterText)}</TableCell>

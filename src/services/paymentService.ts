@@ -20,7 +20,8 @@ export const paymentService = {
       createdAt: d.created_at,
       createdBy: d.created_by,
       createdByName: d.user?.full_name || '-',
-      attachment: d.attachment
+      attachment: d.attachment,
+      lateFeePaid: d.late_fee_paid
     }));
   },
 
@@ -39,6 +40,7 @@ export const paymentService = {
       invoice_id: invoiceId,
       date: payment.date,
       amount: payment.amount,
+      late_fee_paid: payment.lateFeePaid ?? 0,
       installment_number: nextInstallment,
       method: payment.method,
       created_at: new Date().toISOString(),
@@ -104,6 +106,7 @@ export const paymentService = {
       invoiceNumber: d.invoice?.invoice_number,
       date: d.date,
       amount: d.amount,
+      lateFeePaid: d.late_fee_paid,
       installmentNumber: d.installment_number,
       method: d.method,
       createdAt: d.created_at,

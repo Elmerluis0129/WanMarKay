@@ -31,6 +31,7 @@ export interface Payment {
     createdBy?: string;
     createdByName?: string;
     attachment?: string;
+    lateFeePaid?: number;
 }
 
 export interface Invoice {
