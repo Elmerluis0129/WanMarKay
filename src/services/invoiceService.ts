@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { Invoice } from '../types/invoice';
 import { computeInvoiceStatus } from '../utils/statusUtils';
+import { calculateLateFeePercentage, calculateLateFeeAmount } from '../utils/lateFeeUtils';
 
 export const invoiceService = {
   getInvoices: async (): Promise<Invoice[]> => {
@@ -31,7 +32,7 @@ export const invoiceService = {
         nextPaymentDue: d.next_payment_due || undefined,
       } as Invoice;
       if (inv.paymentType === 'credit') {
-        inv.status = computeInvoiceStatus(inv);
+        inv.status = computeInvoiceStatus(inv).status;
       }
       return inv;
     });
@@ -96,6 +97,13 @@ export const invoiceService = {
   },
 
   updateInvoice: async (invoice: Invoice): Promise<Invoice> => {
+    // Si es contado y está retrasada, calcular mora
+    if (invoice.paymentType === 'cash' && invoice.status === 'delayed') {
+      const percentage = calculateLateFeePercentage(invoice);
+      const amount = calculateLateFeeAmount(invoice);
+      invoice.lateFeePercentage = percentage;
+      invoice.lateFeeAmount = amount;
+    }
     // Map fields a snake_case para la actualización
     const payload = {
       invoice_number: invoice.invoiceNumber,
@@ -184,7 +192,7 @@ export const invoiceService = {
         nextPaymentDue: d.next_payment_due || undefined,
       } as Invoice;
       if (inv.paymentType === 'credit') {
-        inv.status = computeInvoiceStatus(inv);
+        inv.status = computeInvoiceStatus(inv).status;
       }
       return inv;
     });

@@ -1,6 +1,7 @@
 export type PaymentFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly';
 export type PaymentStatus = 'pending' | 'paid' | 'delayed' | 'cancelled' | 'on_time';
 export type PaymentMethod = 'cash' | 'transfer' | 'deposit';
+export type InvoiceStatus = 'pending' | 'paid' | 'cancelled' | 'overdue' | 'delayed' | 'on_time';
 
 export interface InvoiceItem {
     description: string;
@@ -51,7 +52,7 @@ export interface Invoice {
     subtotal: number;
     total: number;
     remainingAmount: number;
-    status: 'pending' | 'paid' | 'delayed' | 'cancelled' | 'on_time';
+    status: InvoiceStatus;
     discountPercentage?: number;
     lateFeePercentage?: number;
     // Monto fijo de mora en RD$

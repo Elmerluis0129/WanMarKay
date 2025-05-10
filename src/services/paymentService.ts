@@ -7,10 +7,9 @@ export const paymentService = {
   getPaymentsByInvoice: async (invoiceId: string): Promise<Payment[]> => {
     const { data, error } = await supabase
       .from('payments')
-      .select('*')
+      .select('*, user:users(full_name)')
       .eq('invoice_id', invoiceId);
     if (error) throw error;
-    const users = await userService.getUsers();
     return (data || []).map((d: any) => ({
       id: d.id,
       invoiceId: d.invoice_id,
@@ -20,7 +19,7 @@ export const paymentService = {
       method: d.method,
       createdAt: d.created_at,
       createdBy: d.created_by,
-      createdByName: users.find(u => u.id === d.created_by)?.fullName,
+      createdByName: d.user?.full_name || '-',
       attachment: d.attachment
     }));
   },

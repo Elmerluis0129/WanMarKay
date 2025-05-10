@@ -61,7 +61,12 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
     }, []);
 
     useEffect(() => {
-        setInvoices(initialInvoices);
+        // Actualizar el estado de cada factura basado en la fecha actual
+        const updatedInvoices = initialInvoices.map((invoice) => ({
+            ...invoice,
+            status: computeInvoiceStatus(invoice).status
+        }));
+        setInvoices(updatedInvoices);
     }, [initialInvoices, now]);
 
     // Animar conteo del total al montar o cuando cambian las facturas
@@ -116,7 +121,7 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
     // Recalcular estado dinámico basado en now
     const invoicesWithStatus = invoices.map(inv => {
         if (inv.paymentType === 'credit' && inv.paymentPlan) {
-            return { ...inv, status: computeInvoiceStatus(inv) };
+            return { ...inv, status: computeInvoiceStatus(inv).status };
         }
         return inv;
     });

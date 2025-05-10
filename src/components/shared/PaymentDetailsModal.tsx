@@ -26,33 +26,19 @@ import {
     Alert,
     TextField,
     InputAdornment,
-    Snackbar
+    Snackbar,
+    IconButton
 } from '@mui/material';
-import { Invoice, Payment } from '../../types/invoice';
+import { Invoice, Payment, InvoiceStatus } from '../../types/invoice';
+import { invoiceService, paymentService } from '../../services';
 import { auth } from '../../services/auth';
-import { invoiceService } from '../../services/invoiceService';
-import { paymentService } from '../../services/paymentService';
 import { v4 as uuidv4 } from 'uuid';
 import { addFrequency, calculateDaysRemaining } from '../../utils/dateUtils';
-import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { computeInvoiceStatus } from '../../utils/statusUtils';
-
-interface PaymentDetailsModalProps {
-    open: boolean;
-    onClose: () => void;
-    invoice: Invoice | null;
-    onStatusChange?: () => void; // Callback para notificar cambios
-    onPaymentRegistered?: (invoice: Invoice) => void;
-}
-
-// Helpers para formatear cédula y teléfono visualmente
-const formatCedula = (value: string = ''): string => {
-    const digits = value.replace(/\D/g, '');
-    return digits.length === 11
-        ? `${digits.slice(0,3)}-${digits.slice(3,10)}-${digits.slice(10)}`
-        : value;
-};
+import jsPDF from 'jspdf';
+import { computeInvoiceStatus, InvoiceStatusResult } from '../../utils/statusUtils';
+import { calculateLateFeePercentage, calculateLateFeeAmount } from '../../utils/lateFeeUtils';
+import { DialogProps, SnackbarProps } from '@mui/material';
 
 const formatPhone = (value: string = ''): string => {
     const digits = value.replace(/\D/g, '');
@@ -64,41 +50,91 @@ const formatPhone = (value: string = ''): string => {
     return value;
 };
 
+interface PaymentDetailsModalProps {
+    open: boolean;
+    onClose: () => void;
+    invoice: Invoice | null;
+    isAdmin?: boolean;
+    onStatusChange?: () => void;
+    onPaymentRegistered?: (invoice: Invoice) => void;
+}
+
+// Helpers para formatear cédula y teléfono visualmente
+const formatCedula = (value: string = ''): string => {
+    const digits = value.replace(/\D/g, '');
+    return digits.length === 11
+        ? `${digits.slice(0,3)}-${digits.slice(3,10)}-${digits.slice(10)}`
+        : value;
+};
+
 export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
     open,
     onClose,
     invoice,
+    isAdmin = false,
     onStatusChange,
     onPaymentRegistered
 }) => {
-    const [selectedStatus, setSelectedStatus] = useState<string>('pending');
-    const [confirmDialog, setConfirmDialog] = useState<{
-        open: boolean;
-        currentStatus: string;
-        newStatus: string;
-    }>({
-        open: false,
-        currentStatus: '',
-        newStatus: ''
-    });
-    const [paymentDialog, setPaymentDialog] = useState<{ open: boolean }>({ open: false });
-    const [isEditing, setIsEditing] = useState<boolean>(false);
+    const [isEditing, setIsEditing] = useState(false);
     const [editedInvoice, setEditedInvoice] = useState<Invoice | null>(null);
-    const [imageDialogOpen, setImageDialogOpen] = useState<boolean>(false);
-    const [paymentAttachmentPreview, setPaymentAttachmentPreview] = useState<string | null>(null);
-    const [invoiceSignedUrl, setInvoiceSignedUrl] = useState<string | null>(null);
-    const isAdmin = auth.getCurrentUser()?.role === 'admin';
-    const pdfRef = useRef<HTMLDivElement>(null);
-    const [paymentHistory, setPaymentHistory] = useState<Payment[]>([]);
-    // Control de tiempo para recalcular estado
-    const [now, setNow] = useState<Date>(new Date());
-    // State para porcentaje y monto fijo de mora
+    const [selectedStatus, setSelectedStatus] = useState<InvoiceStatus>('pending');
+    const [statusInfo, setStatusInfo] = useState<InvoiceStatusResult>({ status: 'pending' });
     const [lateFee, setLateFee] = useState<number>(0);
     const [lateFeeAmount, setLateFeeAmount] = useState<number>(0);
-    // Estados para feedback de registro de pago
+    const [isLateFeeCalculated, setIsLateFeeCalculated] = useState<boolean>(false);
+    const [confirmDialog, setConfirmDialog] = useState<{
+        open: boolean;
+        currentStatus: InvoiceStatus;
+        newStatus: InvoiceStatus;
+    }>({
+        open: false,
+        currentStatus: 'pending' as InvoiceStatus,
+        newStatus: 'paid' as InvoiceStatus
+    });
+    const [imageDialogOpen, setImageDialogOpen] = useState(false);
     const [snackbarOpen, setSnackbarOpen] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
-    const [snackbarSeverity, setSnackbarSeverity] = useState<'success'|'error'>('error');
+    const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error' | 'info' | 'warning'>('info');
+    const [paymentDialog, setPaymentDialog] = useState<{
+        open: boolean;
+        amount: number;
+        installmentNumber: number;
+        method: string;
+        attachment: string;
+    }>({
+        open: false,
+        amount: 0,
+        installmentNumber: 0,
+        method: '',
+        attachment: ''
+    });
+
+    const handlePaymentDialogOpen = () => {
+        setPaymentDialog(prev => ({
+            ...prev,
+            open: true,
+            amount: 0,
+            installmentNumber: 0,
+            method: '',
+            attachment: ''
+        }));
+    };
+
+    const handlePaymentDialogClose = () => {
+        setPaymentDialog(prev => ({
+            ...prev,
+            open: false,
+            amount: 0,
+            installmentNumber: 0,
+            method: '',
+            attachment: ''
+        }));
+    };
+    const [paymentHistory, setPaymentHistory] = useState<Payment[]>([]);
+    const [invoiceSignedUrl, setInvoiceSignedUrl] = useState<string | null>(null);
+    const [paymentAttachmentPreview, setPaymentAttachmentPreview] = useState<string | null>(null);
+    const pdfRef = useRef<HTMLDivElement>(null);
+    const [now, setNow] = useState<Date>(new Date());
 
     // When invoice changes, reset editedInvoice and invoiceSignedUrl
     useEffect(() => {
@@ -106,17 +142,37 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
             setEditedInvoice(invoice);
             setIsEditing(false);
             setInvoiceSignedUrl(invoice.attachment || null);
-            // Recalculate status initially
-            setSelectedStatus(computeInvoiceStatus(invoice));
+            // Recalcular status y guardar info
+            const statusResult = computeInvoiceStatus(invoice);
+            setSelectedStatus(statusResult.status);
+            setStatusInfo(statusResult);
             // Inicializar mora desde invoice
             setLateFee(invoice.lateFeePercentage ?? 0);
             setLateFeeAmount(invoice.lateFeeAmount ?? 0);
         }
     }, [invoice]);
-    // Recalculate status every minute
+    // Efecto para recalcular estado y mora cuando cambia la fecha
     useEffect(() => {
         if (invoice) {
-            setSelectedStatus(computeInvoiceStatus(invoice));
+            const statusResult = computeInvoiceStatus(invoice);
+            let status = statusResult.status;
+            const originalStatus = status;
+            setSelectedStatus(status);
+            setStatusInfo(statusResult);
+            // Ajustar estados personalizados a los válidos
+            if (status === 'delayed' || status === 'on_time') status = 'overdue';
+            // Calcular mora solo si es una factura al contado y el estado ORIGINAL era 'delayed'
+            if (invoice.paymentType === 'cash' && originalStatus === 'delayed') {
+                const percentage = calculateLateFeePercentage(invoice);
+                const amount = calculateLateFeeAmount(invoice);
+                setLateFee(percentage);
+                setLateFeeAmount(amount);
+                setIsLateFeeCalculated(true);
+            } else {
+                setLateFee(0);
+                setLateFeeAmount(0);
+                setIsLateFeeCalculated(false);
+            }
         }
     }, [invoice, now]);
     // Update now each minute
@@ -143,19 +199,18 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
 
     if (!invoice) return null;
 
-    const handleStatusChange = (event: SelectChangeEvent) => {
-        const newStatus = event.target.value;
-        
+    const handleStatusChange = (event: SelectChangeEvent<InvoiceStatus>) => {
+        const newStatus = event.target.value as InvoiceStatus;
         // Solo permitir cambios a "cancelled" o "paid"
         if (newStatus !== 'cancelled' && newStatus !== 'paid') {
             return;
         }
-
-        setConfirmDialog({
+        setConfirmDialog(prev => ({
+            ...prev,
             open: true,
             currentStatus: selectedStatus,
             newStatus
-        });
+        }));
     };
 
     const handleConfirmStatusChange = async () => {
@@ -163,7 +218,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
         setSelectedStatus(newStatus);
         
         // Actualizar el estado en el almacenamiento
-        const updatedInvoice = { ...invoice, status: newStatus as 'paid' | 'cancelled' };
+        const updatedInvoice = { ...invoice, status: newStatus as InvoiceStatus };
         await invoiceService.updateInvoice(updatedInvoice);
 
         // Notificar el cambio para actualizar la lista
@@ -199,8 +254,8 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
     };
 
     // Abre/cierra el diálogo de registro de pago
-    const handleOpenPaymentDialog = () => setPaymentDialog({ open: true });
-    const handleClosePaymentDialog = () => setPaymentDialog({ open: false });
+    const handleOpenPaymentDialog = () => setPaymentDialog({ open: true, amount: 0, installmentNumber: 0, method: '', attachment: '' });
+    const handleClosePaymentDialog = () => setPaymentDialog({ open: false, amount: 0, installmentNumber: 0, method: '', attachment: '' });
 
     const handlePaymentFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -251,7 +306,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
             setSnackbarMessage('Pago registrado correctamente');
             setSnackbarSeverity('success');
             setSnackbarOpen(true);
-            setPaymentDialog({ open: false });
+            setPaymentDialog({ open: false, amount: 0, installmentNumber: 0, method: '', attachment: '' });
         } catch (error: any) {
             console.error('Error registrando pago', error);
             setSnackbarMessage('Fecha inválida. No se pudo registrar el pago.');
@@ -261,284 +316,361 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
     };
 
     const handleExportPDF = async () => {
-        if (!pdfRef.current || !invoice) return;
-        const el = pdfRef.current;
-        // Guardar estilos originales
-        const origMaxHeight = el.style.maxHeight;
-        const origOverflow = el.style.overflowY;
-        // Expandir totalmente
-        el.style.maxHeight = 'none';
-        el.style.overflowY = 'visible';
-        // Dejar aplicar estilo
-        await new Promise(resolve => setTimeout(resolve, 100));
-        // Capturar
-        const canvas = await html2canvas(el);
-        // Revertir estilos
-        el.style.maxHeight = origMaxHeight;
-        el.style.overflowY = origOverflow;
-        // Generar PDF
-        const imgData = canvas.toDataURL('image/png');
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const imgProps = pdf.getImageProperties(imgData);
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-        pdf.save(`factura_${invoice.invoiceNumber}.pdf`);
+        if (!invoice || !pdfRef.current) return;
+
+        try {
+            const canvas = await html2canvas(pdfRef.current);
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF();
+            const imgProps = pdf.getImageProperties(imgData);
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`factura_${invoice.invoiceNumber}.pdf`);
+        } catch (error) {
+            console.error('Error al exportar PDF:', error);
+        }
     };
 
     // Aplica y guarda el porcentaje y monto fijo de mora
     const applyLateFee = async () => {
-        if (!invoice) return;
-        const updatedInvoice = {
-            ...invoice,
-            lateFeePercentage: lateFee,
-            lateFeeAmount: lateFeeAmount
-        };
-        await invoiceService.updateInvoice(updatedInvoice);
-        if (onStatusChange) onStatusChange();
+        try {
+            if (!invoice) return;
+            const updatedInvoice = {
+                ...invoice,
+                lateFeePercentage: lateFee,
+                lateFeeAmount: lateFeeAmount
+            };
+            await invoiceService.updateInvoice(updatedInvoice);
+            if (onPaymentRegistered) onPaymentRegistered(updatedInvoice);
+            if (onStatusChange) onStatusChange();
+            setSnackbarMessage('Pago registrado correctamente');
+            setSnackbarSeverity('success');
+            setSnackbarOpen(true);
+            setPaymentDialog({ open: false, amount: 0, installmentNumber: 0, method: '', attachment: '' });
+        } catch (error: any) {
+            console.error('Error registrando pago', error);
+            setSnackbarMessage('Fecha inválida. No se pudo registrar el pago.');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+        }
     };
-
     return (
         <>
-        <Modal open={open} onClose={onClose} aria-labelledby="payment-details-modal">
-          <Paper ref={pdfRef} elevation={4} sx={{
-              position: 'absolute',
-              top: '50%', left: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: { xs: '90%', sm: '80%', md: 700 },
-              maxHeight: '90vh', overflowY: 'auto', p: 2
-          }}>
-            {/* Header */}
-            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h6">Detalles de Pago - Factura #{invoice?.invoiceNumber}</Typography>
-              {isAdmin && (
-                isEditing ? (
-                  <Stack direction="row" spacing={1}>
-                    <Button variant="contained" color="primary" onClick={handleSaveEdit}>Guardar</Button>
-                    <Button variant="outlined" onClick={() => setIsEditing(false)}>Cancelar</Button>
-                  </Stack>
-                ) : (
-                  <Button variant="outlined" onClick={() => setIsEditing(true)}>Editar</Button>
-                )
-              )}
-            </Stack>
-            <Divider sx={{ mb: 2 }} />
-            {/* Datos Generales */}
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
-                <Stack spacing={1}>
-                  <Typography variant="subtitle2" color="textSecondary">Estado</Typography>
-                  {isAdmin ? (
-                    <FormControl fullWidth size="small">
-                      <Select value={selectedStatus} onChange={handleStatusChange}>
-                        {(selectedStatus==='pending'||selectedStatus==='delayed'||selectedStatus==='on_time') && (
-                          <MenuItem value={selectedStatus} disabled>{getStatusLabel(selectedStatus)}</MenuItem>
+            <Modal open={open} onClose={onClose} aria-labelledby="payment-details-modal">
+                <Paper ref={pdfRef} elevation={4} sx={{
+                    position: 'absolute',
+                    top: '50%', left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: { xs: '90%', sm: '80%', md: 700 },
+                    maxHeight: '90vh', overflowY: 'auto', p: 2
+                }}>
+                    {/* Header */}
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+                        <Typography variant="h6">Detalles de Pago - Factura #{invoice?.invoiceNumber}</Typography>
+                        {isAdmin && !isEditing && (
+                            <Button variant="outlined" size="small" onClick={() => setIsEditing(true)}>
+                                Editar
+                            </Button>
                         )}
-                        <MenuItem value="paid">Pagada</MenuItem>
-                        <MenuItem value="cancelled">Cancelada</MenuItem>
-                      </Select>
-                    </FormControl>
-                  ) : (
-                    <Chip label={getStatusLabel(selectedStatus)} color={getStatusColor(selectedStatus)} />
-                  )}
-                  <Typography><strong>Cliente:</strong> {invoice.clientName}</Typography>
-                  <Typography><strong>Fecha:</strong> {new Date(invoice.date).toLocaleDateString()}</Typography>
-                  {isEditing ? (
-                    <>
-                      <TextField
-                        label="Dirección"
-                        fullWidth
-                        size="small"
-                        value={editedInvoice?.address || ''}
-                        onChange={e => setEditedInvoice(prev => prev && { ...prev, address: e.target.value })}
-                        sx={{ mb: 1 }}
-                      />
-                      <TextField
-                        label="Cédula"
-                        fullWidth
-                        size="small"
-                        value={editedInvoice?.cedula || ''}
-                        onChange={e => setEditedInvoice(prev => prev && { ...prev, cedula: e.target.value })}
-                        sx={{ mb: 1 }}
-                      />
-                      <TextField
-                        label="Teléfono"
-                        fullWidth
-                        size="small"
-                        value={editedInvoice?.phone || ''}
-                        onChange={e => setEditedInvoice(prev => prev && { ...prev, phone: e.target.value })}
-                        sx={{ mb: 1 }}
-                      />
-                    </>
-                  ) : (
-                    <>
-                      {invoice.address && <Typography><strong>Dirección:</strong> {invoice.address}</Typography>}
-                      {invoice.cedula && <Typography><strong>Cédula:</strong> {formatCedula(invoice.cedula)}</Typography>}
-                      {invoice.phone && <Typography><strong>Teléfono:</strong> {formatPhone(invoice.phone)}</Typography>}
-                    </>
-                  )}
-                  <Typography><strong>Total:</strong> RD$ {invoice.total.toFixed(2)}</Typography>
-                  <Typography><strong>Descuento:</strong> {invoice.discountPercentage?.toFixed(2) ?? 0}%</Typography>
-                  <Typography><strong>Pendiente:</strong> RD$ {invoice.remainingAmount.toFixed(2)}</Typography>
-                  {isAdmin && (
-                    <Box sx={{ display:'flex', alignItems:'center', gap:1, mt:1 }}>
-                      <TextField
-                        label="Mora (%)"
-                        type="number"
-                        size="small"
-                        value={lateFee}
-                        onChange={e => setLateFee(Number(e.target.value))}
-                        InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
-                      />
-                      <TextField
-                        label="Mora RD$"
-                        type="number"
-                        size="small"
-                        value={lateFeeAmount}
-                        onChange={e => setLateFeeAmount(Number(e.target.value))}
-                        InputProps={{ endAdornment: <InputAdornment position="end">RD$</InputAdornment> }}
-                      />
-                      <Button variant="outlined" size="small" onClick={applyLateFee}>Aplicar Mora</Button>
-                    </Box>
-                  )}
-                  {(lateFee > 0 || lateFeeAmount > 0) && (
-                    <Typography sx={{ mt:1 }}>
-                      <strong>Total pendiente (con mora):</strong> RD$ {((invoice.remainingAmount * (1 + lateFee/100)) + lateFeeAmount).toFixed(2)}
+                    </Stack>
+                    <Divider sx={{ mb: 2 }} />
+                    {/* Datos Generales */}
+                    <Grid container spacing={2}>
+                        <Grid item xs={12} sm={6}>
+                            <Stack spacing={1}>
+                                <Typography variant="subtitle2" color="textSecondary">Estado</Typography>
+                                {isAdmin ? (
+                                    <FormControl fullWidth size="small">
+                                        <Select value={selectedStatus} onChange={handleStatusChange}>
+                                            {selectedStatus==='pending' && (
+                                                <MenuItem value={selectedStatus} disabled>{getStatusLabel(selectedStatus)}</MenuItem>
+                                            )}
+                                            {selectedStatus==='overdue' && (
+                                                <MenuItem value={selectedStatus} disabled>{getStatusLabel(selectedStatus)}</MenuItem>
+                                            )}
+                                            <MenuItem value="paid">Pagada</MenuItem>
+                                            <MenuItem value="cancelled">Cancelada</MenuItem>
+                                        </Select>
+                                    </FormControl>
+                                ) : (
+                                    <Chip label={getStatusLabel(selectedStatus)} color={getStatusColor(selectedStatus)} />
+                                )}
+                                <Typography><strong>Cliente:</strong> {invoice.clientName}</Typography>
+                                <Typography><strong>Fecha:</strong> {new Date(invoice.date).toLocaleDateString()}</Typography>
+                                {isEditing ? (
+                                    <>
+                                        <TextField
+                                            label="Dirección"
+                                            fullWidth
+                                            size="small"
+                                            value={editedInvoice?.address || ''}
+                                            onChange={e => setEditedInvoice(prev => prev && { ...prev, address: e.target.value })}
+                                            sx={{ mb: 1 }}
+                                        />
+                                        <TextField
+                                            label="Cédula"
+                                            fullWidth
+                                            size="small"
+                                            value={editedInvoice?.cedula || ''}
+                                            onChange={e => setEditedInvoice(prev => prev && { ...prev, cedula: e.target.value })}
+                                            sx={{ mb: 1 }}
+                                        />
+                                        <TextField
+                                            label="Teléfono"
+                                            fullWidth
+                                            size="small"
+                                            value={editedInvoice?.phone || ''}
+                                            onChange={e => setEditedInvoice(prev => prev && { ...prev, phone: e.target.value })}
+                                            sx={{ mb: 1 }}
+                                        />
+                                        <TextField
+                                            label="Descuento (%)"
+                                            type="number"
+                                            fullWidth
+                                            size="small"
+                                            value={editedInvoice?.discountPercentage ?? 0}
+                                            onChange={e => setEditedInvoice(prev => prev && { ...prev, discountPercentage: Number(e.target.value) })}
+                                            sx={{ mb: 1 }}
+                                            InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                                        />
+                                        <TextField
+                                            label="Descuento RD$"
+                                            type="number"
+                                            fullWidth
+                                            size="small"
+                                            value={editedInvoice ? (editedInvoice.total * (editedInvoice.discountPercentage ?? 0) / 100).toFixed(2) : '0.00'}
+                                            onChange={e => {
+                                                const value = Number(e.target.value);
+                                                setEditedInvoice(prev => prev && {
+                                                    ...prev,
+                                                    discountPercentage: prev.total > 0 ? (value / prev.total) * 100 : 0
+                                                });
+                                            }}
+                                            sx={{ mb: 1 }}
+                                            InputProps={{ endAdornment: <InputAdornment position="end">RD$</InputAdornment> }}
+                                        />
+                                        <TextField
+                                            label="Mora (%)"
+                                            type="number"
+                                            fullWidth
+                                            size="small"
+                                            value={lateFee}
+                                            onChange={e => setLateFee(Number(e.target.value))}
+                                            sx={{ mb: 1 }}
+                                            InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                                        />
+                                        <TextField
+                                            label="Mora RD$"
+                                            type="number"
+                                            fullWidth
+                                            size="small"
+                                            value={lateFeeAmount}
+                                            onChange={e => setLateFeeAmount(Number(e.target.value))}
+                                            sx={{ mb: 1 }}
+                                            InputProps={{ endAdornment: <InputAdornment position="end">RD$</InputAdornment> }}
+                                        />
+                                        <Stack direction="row" spacing={1} mt={1}>
+                                            <Button variant="contained" color="primary" onClick={handleSaveEdit}>Guardar</Button>
+                                            <Button variant="outlined" color="secondary" onClick={() => { setIsEditing(false); setEditedInvoice(invoice); }}>Cancelar</Button>
+                                        </Stack>
+                                    </>
+                                ) : (
+                                    <>
+                                        {invoice.address && <Typography><strong>Dirección:</strong> {invoice.address}</Typography>}
+                                        {invoice.cedula && <Typography><strong>Cédula:</strong> {formatCedula(invoice.cedula)}</Typography>}
+                                        {invoice.phone && <Typography><strong>Teléfono:</strong> {formatPhone(invoice.phone)}</Typography>}
+                                    </>
+                                )}
+                                <Typography><strong>Total:</strong> RD$ {invoice.total.toFixed(2)}</Typography>
+                                <Typography><strong>Descuento:</strong> {invoice.discountPercentage?.toFixed(2) ?? 0}%</Typography>
+                                <Typography><strong>Pendiente:</strong> RD$ {invoice.remainingAmount.toFixed(2)}</Typography>
+                                {/* Mostrar mora automáticamente si es contado y está retrasada */}
+                                {invoice.paymentType === 'cash' && invoice.status === 'delayed' && (
+                                    <Box sx={{ display:'flex', flexDirection: 'column', gap:1, mt:1 }}>
+                                        <Typography variant="subtitle2" color="error">
+                                            <strong>¡Atención!</strong> Factura con mora por incumplimiento de pago
+                                        </Typography>
+                                        <Typography>
+                                            <strong>Mora aplicada:</strong> {lateFee}% ({lateFeeAmount.toFixed(2)} RD$)
+                                        </Typography>
+                                        <Typography>
+                                            <strong>Total pendiente (con mora):</strong> RD$ {((invoice.remainingAmount * (1 + lateFee/100)) + lateFeeAmount).toFixed(2)}
+                                        </Typography>
+                                    </Box>
+                                )}
+                                {isAdmin && (
+                                    <Box sx={{ display:'flex', alignItems:'center', gap:1, mt:1 }}>
+                                        <TextField
+                                            label="Mora (%)"
+                                            type="number"
+                                            size="small"
+                                            value={lateFee}
+                                            onChange={e => setLateFee(Number(e.target.value))}
+                                            InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                                        />
+                                        <TextField
+                                            label="Mora RD$"
+                                            type="number"
+                                            size="small"
+                                            value={lateFeeAmount}
+                                            onChange={e => setLateFeeAmount(Number(e.target.value))}
+                                            InputProps={{ endAdornment: <InputAdornment position="end">RD$</InputAdornment> }}
+                                        />
+                                        <Button variant="outlined" size="small" onClick={applyLateFee}>Aplicar Mora</Button>
+                                    </Box>
+                                )}
+                                {(lateFee > 0 || lateFeeAmount > 0) && (
+                                    <Typography sx={{ mt:1 }}>
+                                        <strong>Total pendiente (con mora):</strong> RD$ {((invoice.remainingAmount * (1 + lateFee/100)) + lateFeeAmount).toFixed(2)}
+                                    </Typography>
+                                )}
+                                {statusInfo.daysRemaining && (
+                                    <Typography>
+                                        {statusInfo.daysRemaining === 1 ? 'Falta' : 'Faltan'} {statusInfo.daysRemaining} {statusInfo.daysRemaining === 1 ? 'día' : 'días'} para el próximo pago
+                                    </Typography>
+                                )}
+                                {statusInfo.daysLate && (
+                                    <Typography color="error">
+                                        Retraso de {statusInfo.daysLate} {statusInfo.daysLate === 1 ? 'día' : 'días'}
+                                    </Typography>
+                                )}
+                            </Stack>
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                            {invoiceSignedUrl && (
+                                <Paper variant="outlined" sx={{ p:1, textAlign:'center' }}>
+                                    <Box component="img" src={invoiceSignedUrl} alt="Factura" sx={{ maxWidth:'100%', maxHeight:200, cursor:'zoom-in' }} onClick={() => setImageDialogOpen(true)} />
+                                </Paper>
+                            )}
+                        </Grid>
+                    </Grid>
+                    <Divider sx={{ my: 2 }} />
+                    <Typography variant="subtitle1" gutterBottom>Productos</Typography>
+                    <TableContainer component={Paper} variant="outlined">
+                        <Table size="small">
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell>Descripción</TableCell>
+                                    <TableCell align="right">Cantidad</TableCell>
+                                    <TableCell align="right">Precio Unit.</TableCell>
+                                    <TableCell align="right">Total</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {invoice.items.map((item, idx) => (
+                                    <TableRow key={idx} hover>
+                                        <TableCell>{item.description}</TableCell>
+                                        <TableCell align="right">{item.quantity}</TableCell>
+                                        <TableCell align="right">RD$ {item.unitPrice.toFixed(2)}</TableCell>
+                                        <TableCell align="right">RD$ {item.total.toFixed(2)}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                    {/* Historial de Pagos */}
+                    {paymentHistory.length > 0 && (
+                        <>
+                            <Divider sx={{ my: 2 }} />
+                            <Typography variant="subtitle1" gutterBottom>Historial de Pagos</Typography>
+                            <TableContainer component={Paper} variant="outlined">
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>#</TableCell>
+                                            <TableCell>Fecha</TableCell>
+                                            <TableCell align="right">Monto</TableCell>
+                                            <TableCell>Cuota N°</TableCell>
+                                            <TableCell>Método</TableCell>
+                                            <TableCell>Registrado por</TableCell>
+                                            <TableCell>Adjunto</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {paymentHistory.map((p, idx) => (
+                                            <TableRow key={p.id} hover>
+                                                <TableCell>{idx+1}</TableCell>
+                                                <TableCell>{new Date(p.date).toLocaleDateString()}</TableCell>
+                                                <TableCell align="right">RD$ {p.amount.toFixed(2)}</TableCell>
+                                                <TableCell>{p.installmentNumber}</TableCell>
+                                                <TableCell>{p.method}</TableCell>
+                                                <TableCell>{p.createdByName ?? '-'}</TableCell>
+                                                <TableCell>{p.attachment ? <a href={p.attachment} target="_blank" rel="noopener noreferrer">Ver</a> : '-'}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        </>
+                    )}
+                    {/* Acciones Finales */}
+                    <Divider sx={{ my: 2 }} />
+                    <Stack direction="row" justifyContent="flex-end" spacing={1}>
+                        <Button onClick={handleExportPDF} variant="outlined">Exportar a PDF</Button>
+                        <Button onClick={onClose} variant="contained" sx={{ bgcolor:'#E31C79','&:hover':{bgcolor:'#C4156A'} }}>Cerrar</Button>
+                    </Stack>
+                </Paper>
+            </Modal>
+            {/* Confirmar cambio de estado */}
+            <Dialog
+                open={confirmDialog.open}
+                onClose={handleCloseConfirmDialog}
+                aria-labelledby="confirm-status-title"
+            >
+                <DialogTitle id="confirm-status-title">Confirmar cambio de estado</DialogTitle>
+                <DialogContent>
+                    <Alert severity="warning" sx={{ mb: 2 }}>
+                        Una vez cambiado el estado, no podrá volver a pendiente.
+                    </Alert>
+                    <Typography>
+                        ¿Desea cambiar el estado de <strong>{getStatusLabel(confirmDialog.currentStatus)}</strong> a <strong>{getStatusLabel(confirmDialog.newStatus)}</strong>?
                     </Typography>
-                  )}
-                </Stack>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                {invoiceSignedUrl && (
-                  <Paper variant="outlined" sx={{ p:1, textAlign:'center' }}>
-                    <Box component="img" src={invoiceSignedUrl} alt="Factura" sx={{ maxWidth:'100%', maxHeight:200, cursor:'zoom-in' }} onClick={() => setImageDialogOpen(true)} />
-                  </Paper>
-                )}
-              </Grid>
-            </Grid>
-            <Divider sx={{ my: 2 }} />
-            <Typography variant="subtitle1" gutterBottom>Productos</Typography>
-            <TableContainer component={Paper} variant="outlined">
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Descripción</TableCell>
-                    <TableCell align="right">Cantidad</TableCell>
-                    <TableCell align="right">Precio Unit.</TableCell>
-                    <TableCell align="right">Total</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {invoice.items.map((item, idx) => (
-                    <TableRow key={idx} hover>
-                      <TableCell>{item.description}</TableCell>
-                      <TableCell align="right">{item.quantity}</TableCell>
-                      <TableCell align="right">RD$ {item.unitPrice.toFixed(2)}</TableCell>
-                      <TableCell align="right">RD$ {item.total.toFixed(2)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            {/* Historial de Pagos */}
-            {paymentHistory.length > 0 && (
-              <>
-                <Divider sx={{ my: 2 }} />
-                <Typography variant="subtitle1" gutterBottom>Historial de Pagos</Typography>
-                <TableContainer component={Paper} variant="outlined">
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>#</TableCell>
-                        <TableCell>Fecha</TableCell>
-                        <TableCell align="right">Monto</TableCell>
-                        <TableCell>Cuota N°</TableCell>
-                        <TableCell>Método</TableCell>
-                        <TableCell>Registrado por</TableCell>
-                        <TableCell>Adjunto</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {paymentHistory.map((p, idx) => (
-                        <TableRow key={p.id} hover>
-                          <TableCell>{idx+1}</TableCell>
-                          <TableCell>{new Date(p.date).toLocaleDateString()}</TableCell>
-                          <TableCell align="right">RD$ {p.amount.toFixed(2)}</TableCell>
-                          <TableCell>{p.installmentNumber}</TableCell>
-                          <TableCell>{p.method}</TableCell>
-                          <TableCell>{p.createdByName ?? '-'}</TableCell>
-                          <TableCell>{p.attachment ? <a href={p.attachment} target="_blank" rel="noopener noreferrer">Ver</a> : '-'}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </>
-            )}
-            {/* Acciones Finales */}
-            <Divider sx={{ my: 2 }} />
-            <Stack direction="row" justifyContent="flex-end" spacing={1}>
-              <Button onClick={handleExportPDF} variant="outlined">Exportar a PDF</Button>
-              <Button onClick={onClose} variant="contained" sx={{ bgcolor:'#E31C79','&:hover':{bgcolor:'#C4156A'} }}>Cerrar</Button>
-            </Stack>
-          </Paper>
-        </Modal>
-        {/* Confirmar cambio de estado */}
-        <Dialog
-          open={confirmDialog.open}
-          onClose={handleCloseConfirmDialog}
-          aria-labelledby="confirm-status-title"
-        >
-          <DialogTitle id="confirm-status-title">Confirmar cambio de estado</DialogTitle>
-          <DialogContent>
-            <Alert severity="warning" sx={{ mb: 2 }}>
-              Una vez cambiado el estado, no podrá volver a pendiente.
-            </Alert>
-            <Typography>
-              ¿Desea cambiar el estado de <strong>{getStatusLabel(confirmDialog.currentStatus)}</strong> a <strong>{getStatusLabel(confirmDialog.newStatus)}</strong>?
-            </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleCloseConfirmDialog}>Cancelar</Button>
-            <Button onClick={handleConfirmStatusChange} variant="contained" sx={{ bgcolor: '#E31C79', '&:hover': { bgcolor: '#C4156A' } }}>
-              Confirmar
-            </Button>
-          </DialogActions>
-        </Dialog>
-        {/* Visor de imagen ampliada */}
-        <Dialog
-          open={imageDialogOpen}
-          onClose={() => setImageDialogOpen(false)}
-          maxWidth="lg"
-          PaperProps={{ style: { backgroundColor: 'transparent', boxShadow: 'none' } }}
-        >
-          <DialogContent sx={{ p: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            {invoiceSignedUrl && (
-              <Box
-                component="img"
-                src={invoiceSignedUrl}
-                alt="Factura Ampliada"
-                sx={{ width: '100%', height: 'auto', cursor: 'zoom-out' }}
-                onClick={() => setImageDialogOpen(false)}
-              />
-            )}
-          </DialogContent>
-        </Dialog>
-        {/* Snackbar para feedback de pago */}
-        <Snackbar
-          open={snackbarOpen}
-          autoHideDuration={4000}
-          onClose={() => setSnackbarOpen(false)}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        >
-          <Alert
-            onClose={() => setSnackbarOpen(false)}
-            severity={snackbarSeverity}
-            sx={{ width: '100%' }}
-          >
-            {snackbarMessage}
-          </Alert>
-        </Snackbar>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseConfirmDialog}>Cancelar</Button>
+                    <Button onClick={handleConfirmStatusChange} variant="contained" sx={{ bgcolor: '#E31C79', '&:hover': { bgcolor: '#C4156A' } }}>
+                        Confirmar
+                    </Button>
+                </DialogActions>
+            </Dialog>
+            {/* Visor de imagen ampliada */}
+            <Dialog
+                open={imageDialogOpen}
+                onClose={() => setImageDialogOpen(false)}
+                maxWidth="lg"
+                PaperProps={{ style: { backgroundColor: 'transparent', boxShadow: 'none' } }}
+            >
+                <DialogContent sx={{ p: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    {invoiceSignedUrl && (
+                        <Box
+                            component="img"
+                            src={invoiceSignedUrl}
+                            alt="Factura Ampliada"
+                            sx={{ width: '100%', height: 'auto', cursor: 'zoom-out' }}
+                            onClick={() => setImageDialogOpen(false)}
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
+            {/* Snackbar para feedback de pago */}
+            <Snackbar
+                open={snackbarOpen}
+                autoHideDuration={4000}
+                onClose={() => setSnackbarOpen(false)}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <Alert
+                    onClose={() => setSnackbarOpen(false)}
+                    severity={snackbarSeverity}
+                    sx={{ width: '100%' }}
+                >
+                    {snackbarMessage}
+                </Alert>
+            </Snackbar>
         </>
     );
-}; 
+}
+
+export default PaymentDetailsModal;
