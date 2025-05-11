@@ -20,6 +20,7 @@ import ReceiptIcon from '@mui/icons-material/Receipt';
 import PaymentIcon from '@mui/icons-material/Payment';
 import MenuIcon from '@mui/icons-material/Menu';
 import PeopleIcon from '@mui/icons-material/People';
+import AssessmentIcon from '@mui/icons-material/Assessment';
 import { auth } from '../../services/auth';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -120,6 +121,15 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                     >
                                         Ver Pagos
                                     </Button>
+                                    <Button
+                                        color="inherit"
+                                        variant={isActive('/admin/reports') ? 'contained' : 'text'}
+                                        sx={isActive('/admin/reports') ? { backgroundColor: '#ffffff', color: '#000000' } : {}}
+                                        onClick={() => navigate('/admin/reports')}
+                                        startIcon={<AssessmentIcon fontSize="small" />}
+                                    >
+                                        Reportes
+                                    </Button>
                                 </>
                             )}
                             {!isAdmin && (
@@ -191,6 +201,14 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                             >
                                 <ListItemIcon><ReceiptIcon /></ListItemIcon>
                                 <ListItemText primary="Ver Pagos" />
+                            </ListItem>
+                            <ListItem
+                                button
+                                selected={isActive('/admin/reports')}
+                                onClick={() => { navigate('/admin/reports'); setDrawerOpen(false); }}
+                            >
+                                <ListItemIcon><AssessmentIcon /></ListItemIcon>
+                                <ListItemText primary="Reportes" />
                             </ListItem>
                             <ListItem
                                 button

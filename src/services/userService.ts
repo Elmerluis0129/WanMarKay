@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 import { User } from '../types/user';
+import { logService } from './logService';
+import { auth } from './auth';
 
 export const userService = {
   getUsers: async (): Promise<User[]> => {
@@ -44,7 +46,7 @@ export const userService = {
       .select('id, username, full_name, password, role, cedula, phone, address')
       .single();
     if (error || !data) throw error;
-    return {
+    const updatedUser: User = {
       id: data.id,
       username: data.username,
       fullName: data.full_name,
@@ -54,6 +56,23 @@ export const userService = {
       phone: data.phone,
       address: data.address
     };
+    // Registrar acción de edición en el log
+    try {
+      const currentUser = auth.getCurrentUser();
+      if (currentUser) {
+        await logService.addLog({
+          userId: currentUser.id,
+          action: 'edit_user',
+          entity: 'user',
+          entityId: updatedUser.id!,
+          changes: updatedUser,
+          sessionId: undefined
+        });
+      }
+    } catch (logError) {
+      console.error('Error registrando log de usuario', logError);
+    }
+    return updatedUser;
   },
-  // Puedes añadir updateUser, deleteUser... según necesidades
+  // Puedes añadir deleteUser... según necesidades
 };

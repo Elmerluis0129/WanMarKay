@@ -1,7 +1,7 @@
 export type PaymentFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly';
 export type PaymentStatus = 'pending' | 'paid' | 'delayed' | 'cancelled' | 'on_time';
 export type PaymentMethod = 'cash' | 'transfer' | 'deposit';
-export type InvoiceStatus = 'pending' | 'paid' | 'cancelled' | 'overdue' | 'delayed' | 'on_time';
+export type InvoiceStatus = 'paid' | 'cancelled' | 'overdue' | 'delayed' | 'on_time';
 
 export interface InvoiceItem {
     description: string;

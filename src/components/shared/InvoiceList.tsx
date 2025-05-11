@@ -184,10 +184,9 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
         setConfirmDialog(prev => ({ ...prev, open: false }));
     };
 
-    // Colorea estados: 'pending', 'on_time', 'paid', 'delayed', 'cancelled'
+    // Colorea estados: 'on_time', 'paid', 'delayed', 'cancelled'
     const getStatusColor = (status: string): "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning" => {
         switch (status) {
-            case 'pending': return 'warning';
             case 'on_time': return 'success';
             case 'paid': return 'primary';   // pagada en azul
             case 'delayed': return 'error';
@@ -198,7 +197,6 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
 
     const getStatusLabel = (status: string): string => {
         const labels: { [key: string]: string } = {
-            pending: 'Pendiente',
             paid: 'Pagada',
             delayed: 'Retrasada',
             cancelled: 'Cancelada',
@@ -256,7 +254,6 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
                                 onChange={(e: SelectChangeEvent) => setStatusFilter(e.target.value)}
                             >
                                 <MenuItem value="">Todos</MenuItem>
-                                <MenuItem value="pending">Pendiente</MenuItem>
                                 <MenuItem value="on_time">A tiempo</MenuItem>
                                 <MenuItem value="paid">Pagada</MenuItem>
                                 <MenuItem value="delayed">Retrasada</MenuItem>
@@ -354,14 +351,13 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
                                                     }
                                                 }}
                                             >
-                                                {(invoice.status === 'pending' || 
+                                                {(invoice.status === 'on_time' || 
                                                   invoice.status === 'delayed' || 
-                                                  invoice.status === 'on_time') && (
+                                                  invoice.status === 'paid') && (
                                                     <MenuItem value={invoice.status} disabled>
                                                         {getStatusLabel(invoice.status)}
                                                     </MenuItem>
                                                 )}
-                                                <MenuItem value="paid">Pagada</MenuItem>
                                                 <MenuItem value="cancelled">Cancelada</MenuItem>
                                             </Select>
                                         </FormControl>
@@ -413,7 +409,7 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
                 </DialogTitle>
                 <DialogContent>
                     <Alert severity="warning" sx={{ mb: 2 }}>
-                        Una vez cambiado el estado, no podrá volver a establecerlo como pendiente.
+                        Una vez cambiado el estado, no podrá volver a establecerlo como 'A tiempo'.
                     </Alert>
                     <Typography>
                         ¿Está seguro que desea cambiar el estado de la factura de{' '}

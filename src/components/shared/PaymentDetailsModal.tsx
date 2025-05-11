@@ -35,13 +35,11 @@ import { invoiceService, paymentService } from '../../services';
 import { auth } from '../../services/auth';
 import { v4 as uuidv4 } from 'uuid';
 import { addFrequency, calculateDaysRemaining } from '../../utils/dateUtils';
-import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 // @ts-ignore
 import autoTable from 'jspdf-autotable';
 import { computeInvoiceStatus, InvoiceStatusResult } from '../../utils/statusUtils';
 import { calculateLateFeePercentage, calculateLateFeeAmount } from '../../utils/lateFeeUtils';
-import { DialogProps, SnackbarProps } from '@mui/material';
 
 const formatPhone = (value: string = ''): string => {
     const digits = value.replace(/\D/g, '');
@@ -80,8 +78,8 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
 }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editedInvoice, setEditedInvoice] = useState<Invoice | null>(null);
-    const [selectedStatus, setSelectedStatus] = useState<InvoiceStatus>('pending');
-    const [statusInfo, setStatusInfo] = useState<InvoiceStatusResult>({ status: 'pending' });
+    const [selectedStatus, setSelectedStatus] = useState<InvoiceStatus>('on_time');
+    const [statusInfo, setStatusInfo] = useState<InvoiceStatusResult>({ status: 'on_time' });
     const [lateFee, setLateFee] = useState<number>(0);
     const [lateFeeAmount, setLateFeeAmount] = useState<number>(0);
     const [isLateFeeCalculated, setIsLateFeeCalculated] = useState<boolean>(false);
@@ -91,7 +89,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
         newStatus: InvoiceStatus;
     }>({
         open: false,
-        currentStatus: 'pending' as InvoiceStatus,
+        currentStatus: 'on_time' as InvoiceStatus,
         newStatus: 'paid' as InvoiceStatus
     });
     const [imageDialogOpen, setImageDialogOpen] = useState(false);
@@ -256,20 +254,20 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
 
     const getStatusColor = (status: string): "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning" => {
         const colors: { [key: string]: "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning" } = {
-            pending: 'warning',
+            on_time: 'success',
             paid: 'success',
             delayed: 'error',
-            cancelled: 'error',
-            on_time: 'success'
+            cancelled: 'error'
         };
         return colors[status] || 'default';
     };
 
     const getStatusLabel = (status: string): string => {
         const labels: { [key: string]: string } = {
-            pending: 'Pendiente',
+            on_time: 'A tiempo',
             delayed: 'Retrasado',
-            on_time: 'En Tiempo'
+            paid: 'Pagada',
+            cancelled: 'Cancelada'
         };
         return labels[status] || status;
     };
@@ -422,7 +420,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
         const xLabel = 130;
         const xValue = 190;
         doc.text('SUB-TOTAL RD$', xLabel, y);
-        doc.text(`${invoice.total.toFixed(2)}`, xValue, y, { align: 'right' }); y += 6;
+        doc.text(`${invoice.subtotal.toFixed(2)}`, xValue, y, { align: 'right' }); y += 6;
         // doc.text('ITBIS', xLabel, y); doc.text('0.00', xValue, y, { align: 'right' }); y += 6;
         doc.text('TOTAL RD$', xLabel, y);
         doc.text(`${invoice.total.toFixed(2)}`, xValue, y, { align: 'right' }); y += 8;
@@ -473,6 +471,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
             setSnackbarOpen(true);
         }
     };
+
     return (
         <>
             <Modal open={open} onClose={onClose} aria-labelledby="payment-details-modal">
@@ -501,7 +500,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                                 {isAdmin ? (
                                     <FormControl fullWidth size="small">
                                         <Select value={selectedStatus} onChange={handleStatusChange}>
-                                            {selectedStatus==='pending' && (
+                                            {selectedStatus==='on_time' && (
                                                 <MenuItem value={selectedStatus} disabled>{getStatusLabel(selectedStatus)}</MenuItem>
                                             )}
                                             {selectedStatus==='overdue' && (
@@ -512,7 +511,9 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                                         </Select>
                                     </FormControl>
                                 ) : (
-                                    <Chip label={getStatusLabel(selectedStatus)} color={getStatusColor(selectedStatus)} />
+                                    <>
+                                        <Chip label={getStatusLabel(selectedStatus)} color={getStatusColor(selectedStatus)} />
+                                    </>
                                 )}
                                 <Typography><strong>Cliente:</strong> {invoice.clientName}</Typography>
                                 <Typography><strong>Fecha:</strong> {new Date(invoice.date).toLocaleDateString()}</Typography>
@@ -761,7 +762,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                 <DialogTitle id="confirm-status-title">Confirmar cambio de estado</DialogTitle>
                 <DialogContent>
                     <Alert severity="warning" sx={{ mb: 2 }}>
-                        Una vez cambiado el estado, no podrá volver a pendiente.
+                        Una vez cambiado el estado, no podrá volver a establecerlo como 'A tiempo'.
                     </Alert>
                     <Typography>
                         ¿Desea cambiar el estado de <strong>{getStatusLabel(confirmDialog.currentStatus)}</strong> a <strong>{getStatusLabel(confirmDialog.newStatus)}</strong>?

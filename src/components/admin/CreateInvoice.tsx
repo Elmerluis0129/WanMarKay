@@ -253,7 +253,7 @@ export const CreateInvoice: React.FC = () => {
             }
             const today = new Date();
             const diffDays = Math.ceil((nextPaymentDate.getTime() - today.getTime())/(1000*60*60*24));
-            const initialStatus = diffDays < 0 ? 'delayed' : 'pending';
+            const initialStatus = diffDays < 0 ? 'delayed' : 'on_time';
             const newInvoice: Invoice = {
                 id,
                 invoiceNumber: formData.invoiceNumber,

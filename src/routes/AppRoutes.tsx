@@ -10,6 +10,7 @@ import { PaymentList } from '../components/admin/PaymentList';
 import { PrivateRoute } from '../components/auth/PrivateRoute';
 import { UserList } from '../components/admin/UserList';
 import { auth } from '../services/auth';
+import { ReportsDashboard } from '../components/admin/ReportsDashboard';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -53,6 +54,14 @@ export const AppRoutes: React.FC = () => {
         element={
           <PrivateRoute requireAdmin>
             <PaymentList />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/reports"
+        element={
+          <PrivateRoute requireAdmin>
+            <ReportsDashboard />
           </PrivateRoute>
         }
       />
