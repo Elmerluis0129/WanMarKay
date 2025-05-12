@@ -485,7 +485,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                     {/* Header */}
                     <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
                         <Typography variant="h6">Detalles de Pago - Factura #{invoice?.invoiceNumber}</Typography>
-                        {!isEditing && (
+                        {auth.isAdmin() && !isEditing && (
                             <Button variant="outlined" size="small" onClick={() => setIsEditing(true)}>
                                 Editar
                             </Button>
@@ -743,7 +743,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                     {/* Acciones Finales */}
                     <Divider sx={{ my: 2 }} />
                     <Stack direction="row" justifyContent="flex-end" spacing={1}>
-                        {invoice.paymentPlan && (
+                        {auth.isAdmin() && invoice.paymentPlan && (
                             <Button variant="contained" onClick={() => navigate('/admin/payment/register', { state: { invoiceId: invoice.id } })}>
                                 Registrar Pago
                             </Button>

@@ -38,13 +38,10 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
     const [drawerOpen, setDrawerOpen] = useState(false);
     const isActive = (path: string) => location.pathname === path;
 
-    const handleLogout = async () => {
-        try {
-            await auth.logout();
-            navigate('/login', { replace: true });
-        } catch (error) {
-            console.error('Error during logout:', error);
-        }
+    const handleLogout = () => {
+        // Limpiar credenciales y forzar redirección al login
+        auth.logout();
+        window.location.replace('/login');
     };
 
     return (
@@ -229,7 +226,7 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                             <ListItemText primary="Mis Facturas" />
                         </ListItem>
                     )}
-                    <ListItem button onClick={async () => { setDrawerOpen(false); auth.logout(); navigate('/login', { replace: true }); }}>
+                    <ListItem button onClick={handleLogout}>
                         <ListItemIcon><LogoutIcon /></ListItemIcon>
                         <ListItemText primary="Cerrar Sesión" />
                     </ListItem>

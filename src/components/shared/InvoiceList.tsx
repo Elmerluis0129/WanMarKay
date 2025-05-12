@@ -35,6 +35,7 @@ import { invoiceService } from '../../services/invoiceService';
 import { auth } from '../../services/auth';
 import { computeInvoiceStatus } from '../../utils/statusUtils';
 import { useQuery } from '@tanstack/react-query';
+import { Loader } from './Loader';
 
 // Props para el componente InvoiceList
 interface InvoiceListProps {
@@ -252,11 +253,7 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
 
     // Mostrar spinner si búsqueda global está activa y aún carga facturas completas
     if (searchQuery.length > 0 && loadingAll) {
-        return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                <CircularProgress />
-            </Box>
-        );
+        return <Loader />;
     }
 
     return (

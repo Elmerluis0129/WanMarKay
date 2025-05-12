@@ -19,7 +19,7 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({
     }
 
     if (requireAdmin && !isAdmin) {
-        return <Navigate to="/client" />;
+        return <Navigate to="/403" />;
     }
 
     return <>{children}</>;

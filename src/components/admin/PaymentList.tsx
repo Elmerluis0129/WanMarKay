@@ -17,6 +17,7 @@ import { Navigation } from '../shared/Navigation';
 import { paymentService } from '../../services/paymentService';
 import { Payment } from '../../types/invoice';
 import { useQuery } from '@tanstack/react-query';
+import { Loader } from '../shared/Loader';
 
 // Funciones para resaltar coincidencias en filtros
 const escapeRegExp = (s: string): string => s.replace(/[-\\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -82,7 +83,9 @@ export const PaymentList: React.FC = () => {
   }, [filterText, filteredPayments.length, totalCount]);
 
   // Mostrar spinner si carga inicial o carga global de búsqueda
-  if ((filterText ? loadingAll : isLoading)) return <CircularProgress />;
+  if (filterText ? loadingAll : isLoading) {
+    return <Loader />;
+  }
   if (error) return <div>Error al cargar pagos: {error.message}</div>;
 
   return (

@@ -11,6 +11,14 @@ import { PrivateRoute } from '../components/auth/PrivateRoute';
 import { UserList } from '../components/admin/UserList';
 import { auth } from '../services/auth';
 import { ReportsDashboard } from '../components/admin/ReportsDashboard';
+import NotFound from '../components/shared/NotFound';
+import Forbidden from '../components/shared/Forbidden';
+import ServerError from '../components/shared/ServerError';
+import Maintenance from '../components/shared/Maintenance';
+import NoResults from '../components/shared/NoResults';
+import ComingSoon from '../components/shared/ComingSoon';
+import UserProfile from '../components/shared/UserProfile';
+import FAQ from '../components/shared/FAQ';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -95,6 +103,16 @@ export const AppRoutes: React.FC = () => {
           <Navigate to="/login" />
         }
       />
+      {/* Páginas de estado y utilitarias */}
+      <Route path="/403" element={<Forbidden />} />
+      <Route path="/500" element={<ServerError />} />
+      <Route path="/503" element={<Maintenance />} />
+      <Route path="/no-results" element={<NoResults />} />
+      <Route path="/coming-soon" element={<ComingSoon />} />
+      <Route path="/profile" element={<PrivateRoute><UserProfile /></PrivateRoute>} />
+      <Route path="/faq" element={<FAQ />} />
+      {/* Ruta 404: Página no encontrada */}
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }; 
