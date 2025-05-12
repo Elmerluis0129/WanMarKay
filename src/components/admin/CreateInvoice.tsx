@@ -243,7 +243,7 @@ export const CreateInvoice: React.FC = () => {
             }
             const { subtotal, total } = calculateTotal();
             const currentUser = auth.getCurrentUser();
-            const startDate = new Date(paymentPlan.startDate || new Date());
+            const startDate = new Date(isoDate);
             let nextPaymentDate = new Date(startDate);
             switch (paymentPlan.frequency) {
                 case 'weekly': nextPaymentDate.setDate(startDate.getDate() + 7); break;
@@ -386,7 +386,7 @@ export const CreateInvoice: React.FC = () => {
                 return;
             }
             try {
-                const all = await invoiceService.getInvoices();
+                const all = await invoiceService.getAllInvoices();
                 const exists = all.some(inv => inv.invoiceNumber === num);
                 setInvoiceNumberError(exists ? 'Número de factura ya existe. Elija otro.' : '');
             } catch (err) {
@@ -709,14 +709,6 @@ export const CreateInvoice: React.FC = () => {
                                             onFocus={e => (e.target as HTMLInputElement).select()}
                                             onChange={handlePaymentPlanChange}
                                             sx={{ width: 150 }}
-                                        />
-                                        <TextField
-                                            type="date"
-                                            name="startDate"
-                                            label="Fecha de Inicio"
-                                            value={paymentPlan.startDate}
-                                            onChange={handlePaymentPlanChange}
-                                            InputLabelProps={{ shrink: true }}
                                         />
                                         <TextField
                                             disabled

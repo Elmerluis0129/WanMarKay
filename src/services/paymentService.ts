@@ -94,6 +94,34 @@ export const paymentService = {
     };
   },
 
+  // Obtiene pagos paginados: page (1-based) y pageSize
+  getPayments: async (page = 1, pageSize = 10): Promise<{ data: Payment[]; count: number }> => {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    const { data, error, count } = await supabase
+      .from('payments')
+      .select('*, invoice:invoices(invoice_number)', { count: 'exact' })
+      .range(from, to);
+    if (error) throw error;
+    const users = await userService.getUsers();
+    const payments: Payment[] = (data || []).map((d: any) => ({
+      id: d.id,
+      invoiceId: d.invoice_id,
+      invoiceNumber: d.invoice?.invoice_number,
+      date: d.date,
+      amount: d.amount,
+      lateFeePaid: d.late_fee_paid,
+      installmentNumber: d.installment_number,
+      method: d.method,
+      createdAt: d.created_at,
+      createdBy: d.created_by,
+      createdByName: users.find(u => u.id === d.created_by)?.fullName,
+      attachment: d.attachment
+    }));
+    return { data: payments, count: count || 0 };
+  },
+
+  // Obtener todos los pagos sin paginar
   getAllPayments: async (): Promise<Payment[]> => {
     const { data, error } = await supabase
       .from('payments')

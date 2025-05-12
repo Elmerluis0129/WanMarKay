@@ -74,5 +74,38 @@ export const userService = {
     }
     return updatedUser;
   },
+  // Obtiene usuarios paginados y filtrados por search
+  getUsersPaginated: async (
+    page = 1,
+    pageSize = 10,
+    search = ''
+  ): Promise<{ data: User[]; count: number }> => {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    // Construir filtro de búsqueda en username, full_name, role o address
+    let query = supabase
+      .from('users')
+      .select('id, username, full_name, password, role, cedula, phone, address', { count: 'exact' })
+      .range(from, to);
+    if (search) {
+      const term = `%${search}%`;
+      query = query.or(
+        `username.ilike.${term},full_name.ilike.${term},role.ilike.${term},address.ilike.${term}`
+      );
+    }
+    const { data, error, count } = await query;
+    if (error) throw error;
+    const users: User[] = (data || []).map((d: any) => ({
+      id: d.id,
+      username: d.username,
+      fullName: d.full_name,
+      password: d.password,
+      role: d.role,
+      cedula: d.cedula,
+      phone: d.phone,
+      address: d.address
+    }));
+    return { data: users, count: count || 0 };
+  },
   // Puedes añadir deleteUser... según necesidades
 };

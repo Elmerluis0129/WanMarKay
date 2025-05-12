@@ -59,7 +59,7 @@ export const RegisterPayment: React.FC = () => {
     useEffect(() => {
         (async () => {
             try {
-                const data = await invoiceService.getInvoices();
+                const data = await invoiceService.getAllInvoices();
                 const pending = data.filter(inv => inv.status !== 'paid' && inv.status !== 'cancelled');
                 setInvoices(pending);
             } catch (err: any) {

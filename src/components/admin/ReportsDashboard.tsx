@@ -11,9 +11,10 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 export const ReportsDashboard: React.FC = () => {
   const [year, setYear] = useState<string>(new Date().getFullYear().toString());
   const [includeAllYears, setIncludeAllYears] = useState<boolean>(false);
-  const { data: invoices, isLoading, error } = useQuery<Invoice[], Error>({
+  const { data: invoices = [], isLoading, error } = useQuery<Invoice[], Error>({
     queryKey: ['invoices'],
-    queryFn: () => invoiceService.getInvoices(),
+    queryFn: () => invoiceService.getAllInvoices(),
+    staleTime: 300000,
   });
 
   if (isLoading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress /></Box>;

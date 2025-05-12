@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Box,
+    CircularProgress,
     Paper,
     Table,
     TableBody,
@@ -33,24 +34,50 @@ import { PaymentDetailsModal } from './PaymentDetailsModal';
 import { invoiceService } from '../../services/invoiceService';
 import { auth } from '../../services/auth';
 import { computeInvoiceStatus } from '../../utils/statusUtils';
+import { useQuery } from '@tanstack/react-query';
 
 // Props para el componente InvoiceList
 interface InvoiceListProps {
     invoices: Invoice[];
     title?: string;
     onInvoicesChange?: () => void;
+    totalInvoices?: number; // total general de facturas
+    onSearchChange?: (query: string) => void;
 }
+
+// Funciones para resaltar texto en búsqueda
+const escapeRegExp = (s: string): string => s.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+const highlightText = (text: string, highlight: string): React.ReactNode => {
+  if (!highlight) return text;
+  const parts = text.split(new RegExp(`(${escapeRegExp(highlight)})`, 'gi'));
+  const lowered = highlight.toLowerCase();
+  return parts.map((part, i) =>
+    part.toLowerCase() === lowered ? <span key={i} style={{ backgroundColor: 'yellow' }}>{part}</span> : part
+  );
+};
 
 export const InvoiceList: React.FC<InvoiceListProps> = ({ 
     invoices: initialInvoices,
     title = 'Facturas',
-    onInvoicesChange
+    onInvoicesChange,
+    totalInvoices,
+    onSearchChange
 }) => {
     const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
     // Estado para desencadenar recálculo cada minuto
     const [now, setNow] = useState<Date>(new Date());
     // Búsqueda por número de factura o cliente
     const [searchQuery, setSearchQuery] = useState<string>('');
+    const { data: allInvoices, isLoading: loadingAll } = useQuery<Invoice[], Error>({
+        queryKey: ['invoicesAll'],
+        queryFn: () => invoiceService.getAllInvoices(),
+        enabled: searchQuery.length > 0,
+        staleTime: 300000,
+    });
+    const allInvoicesWithStatus = (allInvoices || []).map(inv => ({
+        ...inv,
+        status: computeInvoiceStatus(inv).status
+    }));
 
     // Contador animado del total de facturas
     const [displayCount, setDisplayCount] = useState(0);
@@ -68,24 +95,6 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
         }));
         setInvoices(updatedInvoices);
     }, [initialInvoices, now]);
-
-    // Animar conteo del total al montar o cuando cambian las facturas
-    useEffect(() => {
-        const total = invoices.length;
-        let current = 0;
-        const duration = 1000; // ms
-        const step = 50; // ms
-        const increment = Math.ceil(total / (duration / step));
-        const timer = setInterval(() => {
-            current += increment;
-            if (current >= total) {
-                current = total;
-                clearInterval(timer);
-            }
-            setDisplayCount(current);
-        }, step);
-        return () => clearInterval(timer);
-    }, [invoices.length]);
 
     const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
     useEffect(() => {
@@ -125,8 +134,11 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
         }
         return inv;
     });
+    const invoicesToFilter = searchQuery
+        ? allInvoicesWithStatus
+        : invoicesWithStatus;
     // Facturas filtradas según criterios y búsqueda
-    const filteredInvoices = invoicesWithStatus.filter(inv => {
+    const filteredInvoices = invoicesToFilter.filter(inv => {
         return (statusFilter === '' || inv.status === statusFilter)
             && (typeFilter === '' || inv.paymentType === typeFilter)
             && (userFilter === '' || inv.clientName === userFilter)
@@ -137,6 +149,27 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
                 || inv.clientName.toLowerCase().includes(searchQuery.toLowerCase())
             );
     });
+
+    // Animar conteo basado en facturas filtradas
+    useEffect(() => {
+        // Total general o resultados filtrados según búsqueda
+        const total = searchQuery
+            ? filteredInvoices.length
+            : (totalInvoices !== undefined ? totalInvoices : initialInvoices.length);
+        let current = 0;
+        const duration = 1000;
+        const step = 50;
+        const increment = Math.ceil(total / (duration / step));
+        const timer = setInterval(() => {
+            current += increment;
+            if (current >= total) {
+                current = total;
+                clearInterval(timer);
+            }
+            setDisplayCount(current);
+        }, step);
+        return () => clearInterval(timer);
+    }, [searchQuery, filteredInvoices.length, totalInvoices, initialInvoices.length]);
 
     const clearFilters = () => {
         setStatusFilter(''); setTypeFilter(''); setUserFilter(''); setDateFrom(''); setDateTo('');
@@ -217,6 +250,15 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
         }
     };
 
+    // Mostrar spinner si búsqueda global está activa y aún carga facturas completas
+    if (searchQuery.length > 0 && loadingAll) {
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                <CircularProgress />
+            </Box>
+        );
+    }
+
     return (
         <Box>
             <Typography variant="h5" sx={{ color: '#E31C79', mb: 1 }}>
@@ -234,7 +276,7 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
                             size="small"
                             label="Buscar factura/cliente"
                             value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
+                            onChange={e => { setSearchQuery(e.target.value); onSearchChange?.(e.target.value); }}
                             InputProps={{
                                 startAdornment: (
                                     <InputAdornment position="start">
@@ -330,11 +372,11 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
                                 }}
                             >
                                 <TableCell sx={{ whiteSpace: 'nowrap' }}>{index + 1}</TableCell>
-                                <TableCell>{invoice.invoiceNumber}</TableCell>
+                                <TableCell>{highlightText(invoice.invoiceNumber, searchQuery)}</TableCell>
                                 <TableCell>
                                     {invoice.date}
                                 </TableCell>
-                                <TableCell>{invoice.clientName}</TableCell>
+                                <TableCell>{highlightText(invoice.clientName, searchQuery)}</TableCell>
                                 <TableCell>
                                     {invoice.paymentType === 'credit' ? 'Crédito' : 'Contado'}
                                 </TableCell>

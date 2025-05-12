@@ -4,8 +4,11 @@ import { computeInvoiceStatus } from '../utils/statusUtils';
 import { calculateLateFeePercentage, calculateLateFeeAmount } from '../utils/lateFeeUtils';
 
 export const invoiceService = {
-  getInvoices: async (): Promise<Invoice[]> => {
-    const { data, error } = await supabase.from('invoices').select('*');
+  // Obtener todas las facturas sin paginar
+  getAllInvoices: async (): Promise<Invoice[]> => {
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('*');
     if (error) throw error;
     return (data || []).map((d: any) => {
       const inv: Invoice = {
@@ -36,6 +39,47 @@ export const invoiceService = {
       }
       return inv;
     });
+  },
+
+  // Obtener facturas paginadas: page (1-based) y pageSize
+  getInvoices: async (page = 1, pageSize = 10): Promise<{ data: Invoice[]; count: number }> => {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    const { data, error, count } = await supabase
+      .from('invoices')
+      .select('*', { count: 'exact' })
+      .range(from, to);
+    if (error) throw error;
+    const invoices: Invoice[] = (data || []).map((d: any) => {
+      const inv: Invoice = {
+        id: d.id,
+        invoiceNumber: d.invoice_number,
+        date: d.date,
+        clientId: d.client_id,
+        clientName: d.client_name,
+        address: d.address || undefined,
+        cedula: d.cedula || undefined,
+        phone: d.phone || undefined,
+        attachment: d.attachment || undefined,
+        items: d.items,
+        subtotal: d.subtotal,
+        total: d.total,
+        remainingAmount: d.remaining_amount,
+        status: d.status,
+        discountPercentage: d.discount_percentage ?? 0,
+        lateFeePercentage: d.late_fee_percentage ?? 0,
+        lateFeeAmount: d.late_fee_amount ?? 0,
+        paymentType: d.payment_type,
+        paymentPlan: d.payment_plan,
+        payments: d.payments,
+        nextPaymentDue: d.next_payment_due || undefined,
+      } as Invoice;
+      if (inv.paymentType === 'credit') {
+        inv.status = computeInvoiceStatus(inv).status;
+      }
+      return inv;
+    });
+    return { data: invoices, count: count || 0 };
   },
 
   addInvoice: async (invoice: Invoice): Promise<Invoice> => {

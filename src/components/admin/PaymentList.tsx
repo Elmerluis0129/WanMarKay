@@ -10,10 +10,13 @@ import {
   TableRow,
   TableCell,
   TableBody,
+  Pagination,
+  CircularProgress,
 } from '@mui/material';
 import { Navigation } from '../shared/Navigation';
 import { paymentService } from '../../services/paymentService';
 import { Payment } from '../../types/invoice';
+import { useQuery } from '@tanstack/react-query';
 
 // Funciones para resaltar coincidencias en filtros
 const escapeRegExp = (s: string): string => s.replace(/[-\\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -29,37 +32,58 @@ const highlightText = (text: string, highlight: string): React.ReactNode => {
 };
 
 export const PaymentList: React.FC = () => {
-  const [payments, setPayments] = useState<Payment[]>([]);
-  // Contador animado del total de pagos
-  const [displayCount, setDisplayCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  // Usamos React Query para obtener pagos paginados
+  const { data: result, isLoading, error } = useQuery<{ data: Payment[]; count: number }, Error>({
+    queryKey: ['payments', page],
+    queryFn: () => paymentService.getPayments(page, pageSize),
+    staleTime: 300000,
+  });
+  const payments = result?.data || [];
+  const totalCount = result?.count || 0;
+  const totalPages = Math.ceil(totalCount / pageSize);
   const [filterText, setFilterText] = useState<string>('');
+  const [displayCount, setDisplayCount] = useState(0);
 
-  useEffect(() => {
-    (async () => {
-      const data = await paymentService.getAllPayments();
-      setPayments(data);
-    })();
-  }, []);
+  // Búsqueda global: si hay texto, cargamos todos los pagos para filtrar
+  const { data: allPayments, isLoading: loadingAll } = useQuery<Payment[], Error>({
+    queryKey: ['paymentsAll'],
+    queryFn: () => paymentService.getAllPayments(),
+    enabled: filterText.length > 0,
+    staleTime: 300000,
+  });
+  // Lista a filtrar depende de si hay búsqueda global
+  const paymentsToFilter = filterText ? (allPayments || []) : payments;
 
-  // Animar conteo del total de pagos
+  const filteredPayments = paymentsToFilter.filter(p =>
+    (p.invoiceNumber ?? '').toLowerCase().includes(filterText.toLowerCase()) ||
+    (p.createdByName ?? '').toLowerCase().includes(filterText.toLowerCase())
+  );
+
+  // Animación del conteo: total global o resultados filtrados
   useEffect(() => {
-    const total = payments.length;
+    const total = filterText
+      ? filteredPayments.length
+      : totalCount;
     let current = 0;
     const duration = 1000;
     const step = 50;
     const increment = Math.ceil(total / (duration / step));
     const timer = setInterval(() => {
       current += increment;
-      if (current >= total) { current = total; clearInterval(timer); }
+      if (current >= total) {
+        current = total;
+        clearInterval(timer);
+      }
       setDisplayCount(current);
     }, step);
     return () => clearInterval(timer);
-  }, [payments.length]);
+  }, [filterText, filteredPayments.length, totalCount]);
 
-  const filteredPayments = payments.filter(p =>
-    (p.invoiceNumber ?? '').toLowerCase().includes(filterText.toLowerCase()) ||
-    (p.createdByName ?? '').toLowerCase().includes(filterText.toLowerCase())
-  );
+  // Mostrar spinner si carga inicial o carga global de búsqueda
+  if ((filterText ? loadingAll : isLoading)) return <CircularProgress />;
+  if (error) return <div>Error al cargar pagos: {error.message}</div>;
 
   return (
     <>
@@ -76,7 +100,7 @@ export const PaymentList: React.FC = () => {
             fullWidth
             label="Filtrar Pagos"
             value={filterText}
-            onChange={e => setFilterText(e.target.value)}
+            onChange={e => { setFilterText(e.target.value); setPage(1); }}
             sx={{ mb: 2 }}
           />
           <Paper elevation={1} sx={{ p: 2 }}>
@@ -122,6 +146,17 @@ export const PaymentList: React.FC = () => {
                 ))}
               </TableBody>
             </Table>
+            {/* Paginación solo si no hay búsqueda global */}
+            {!filterText && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                <Pagination
+                  count={totalPages}
+                  page={page}
+                  onChange={(_, value) => setPage(value)}
+                  color="primary"
+                />
+              </Box>
+            )}
           </Paper>
         </Box>
       </Container>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Container,
   Box,
@@ -23,13 +23,15 @@ import {
   IconButton,
   Snackbar,
   Alert as MuiAlert,
+  Pagination,
+  CircularProgress
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import { Navigation } from '../shared/Navigation';
 import { userService } from '../../services/userService';
 import { User } from '../../types/user';
-import InputMask from 'react-input-mask';
 import { auth } from '../../services/auth';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 // Funciones para resaltar coincidencias en filtros
 const escapeRegExp = (s: string) => s.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -66,37 +68,27 @@ const formatPhone = (value?: string | null): string => {
 export const UserList: React.FC = () => {
   const currentUser = auth.getCurrentUser();
   const isAdmin = currentUser?.role === 'admin';
-  const [users, setUsers] = useState<User[]>([]);
-  // Contador animado del total de usuarios
-  const [displayCount, setDisplayCount] = useState(0);
-  const [filterText, setFilterText] = useState<string>('');
+  // Paginación remota y búsqueda con React Query
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const [search, setSearch] = useState('');
+  const { data: result, isLoading, error } = useQuery<{ data: User[]; count: number }, Error>({
+    queryKey: ['users', page, search],
+    queryFn: () => userService.getUsersPaginated(page, pageSize, search),
+    staleTime: 300000,
+  });
+  const queryClient = useQueryClient();
+  const users = result?.data || [];
+  const totalCount = result?.count || 0;
+  const totalPages = Math.ceil(totalCount / pageSize);
+  // Estado de edición y Snackbar
   const [editUser, setEditUser] = useState<User | null>(null);
   const [editForm, setEditForm] = useState<Partial<User>>({});
-  // Estado para Snackbar de feedback
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
 
-  useEffect(() => {
-    (async () => {
-      const data = await userService.getUsers();
-      setUsers(data);
-    })();
-  }, []);
-
-  // Animar conteo del total de usuarios
-  useEffect(() => {
-    const total = users.length;
-    let current = 0;
-    const duration = 1000;
-    const step = 50;
-    const increment = Math.ceil(total / (duration / step));
-    const timer = setInterval(() => {
-      current += increment;
-      if (current >= total) { current = total; clearInterval(timer); }
-      setDisplayCount(current);
-    }, step);
-    return () => clearInterval(timer);
-  }, [users.length]);
+  if (isLoading) return <CircularProgress />;
+  if (error) return <div>Error al cargar usuarios: {error.message}</div>;
 
   const openEdit = (user: User) => {
     setEditUser(user);
@@ -114,33 +106,16 @@ export const UserList: React.FC = () => {
   const handleSaveEdit = async () => {
     if (!editUser) return;
     const updated = { ...editUser, ...editForm } as User;
-    // limpia guiones y no-dígitos
     if (updated.cedula) updated.cedula = updated.cedula.replace(/-/g, '');
     if (updated.phone) updated.phone = updated.phone.replace(/\D/g, '');
     await userService.updateUser(updated);
-    const fresh = await userService.getUsers();
-    setUsers(fresh);
+    // Invalidar caché para recargar la lista
+    await queryClient.invalidateQueries({ queryKey: ['users'] });
     setEditUser(null);
     setSnackbarMessage(`Cambios guardados correctamente para "${updated.username}"`);
     setSnackbarOpen(true);
   };
   const handleSnackbarClose = () => setSnackbarOpen(false);
-
-  // Filtrar usuarios: si texto son solo dígitos, buscar en cédula/teléfono; si no, buscar en usuario/nombre/rol/dirección
-  const query = filterText.trim().toLowerCase();
-  const isDigits = /^[0-9]+$/.test(query);
-  const filteredUsers = users.filter(u => {
-    if (!query) return true;
-    if (isDigits) {
-      const digits = query;
-      return (
-        (u.cedula?.includes(digits) ?? false) ||
-        (u.phone?.includes(digits) ?? false)
-      );
-    }
-    return [u.username, u.fullName, u.role, u.address]
-      .some(field => field?.toLowerCase().includes(query));
-  });
 
   return (
     <>
@@ -150,16 +125,18 @@ export const UserList: React.FC = () => {
           <Typography variant="h5" sx={{ color: '#E31C79', mb: 1 }}>
             Usuarios
           </Typography>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Total de usuarios: {displayCount}
-          </Typography>
-          <TextField
-            fullWidth
-            label="Filtrar Usuarios"
-            value={filterText}
-            onChange={e => setFilterText(e.target.value)}
-            sx={{ mb: 2 }}
-          />
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <TextField
+              label="Buscar Usuarios"
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              size="small"
+              sx={{ mr: 2 }}
+            />
+            <Typography variant="h6">
+              Total de usuarios: {totalCount}
+            </Typography>
+          </Box>
           <Paper elevation={1} sx={{ p: 2 }}>
             <Table sx={{ tableLayout: 'auto', width: '100%' }}>
               <TableHead>
@@ -175,15 +152,15 @@ export const UserList: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredUsers.map((user, index) => (
+                {users.map((user, index) => (
                   <TableRow key={user.id} hover sx={{ backgroundColor: index % 2 === 0 ? '#ffffff' : '#f5f5f5' }}>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{index + 1}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.username, filterText)}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.fullName, filterText)}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.role, filterText)}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(formatCedula(user.cedula ?? ''), filterText)}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(formatPhone(user.phone ?? ''), filterText)}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.address ?? '', filterText)}</TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{(page - 1) * pageSize + index + 1}</TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.username, search)}</TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.fullName, search)}</TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.role, search)}</TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(formatCedula(user.cedula ?? ''), search)}</TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(formatPhone(user.phone ?? ''), search)}</TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.address ?? '', search)}</TableCell>
                     {isAdmin && (
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>
                         <IconButton onClick={() => openEdit(user)} size="small">
@@ -195,6 +172,14 @@ export const UserList: React.FC = () => {
                 ))}
               </TableBody>
             </Table>
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+              <Pagination
+                count={totalPages}
+                page={page}
+                onChange={(_, value) => setPage(value)}
+                color="primary"
+              />
+            </Box>
           </Paper>
         </Box>
       </Container>
@@ -230,38 +215,22 @@ export const UserList: React.FC = () => {
                 <MenuItem value="admin">Administrador</MenuItem>
               </Select>
             </FormControl>
-            <InputMask
-              mask="999-9999999-9"
+            <TextField
+              name="cedula"
+              label="Cédula"
+              fullWidth
+              margin="dense"
               value={editForm.cedula || ''}
               onChange={handleInputChange}
-              maskChar=""
-            >
-              {(maskProps: any) => (
-                <TextField
-                  {...maskProps}
-                  name="cedula"
-                  label="Cédula"
-                  fullWidth
-                  margin="dense"
-                />
-              )}
-            </InputMask>
-            <InputMask
-              mask="+1 (999) 999-9999"
+            />
+            <TextField
+              name="phone"
+              label="Teléfono"
+              fullWidth
+              margin="dense"
               value={editForm.phone || ''}
               onChange={handleInputChange}
-              maskChar=""
-            >
-              {(maskProps: any) => (
-                <TextField
-                  {...maskProps}
-                  name="phone"
-                  label="Teléfono"
-                  fullWidth
-                  margin="dense"
-                />
-              )}
-            </InputMask>
+            />
             <TextField
               name="address"
               label="Dirección/Referencia"
