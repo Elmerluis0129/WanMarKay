@@ -1,21 +1,60 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Container, Box, CircularProgress, Typography, FormControl, InputLabel, Select, MenuItem, Grid, Card, CardContent, Checkbox, FormControlLabel } from '@mui/material';
+import { Container, Box, CircularProgress, Typography, FormControl, InputLabel, Select, MenuItem, Grid, Card, CardContent, Checkbox, FormControlLabel, TextField, FormGroup } from '@mui/material';
 import { Navigation } from '../shared/Navigation';
 import { DashboardSummary } from '../shared/DashboardSummary';
 import { computeInvoiceStatus } from '../../utils/statusUtils';
 import { invoiceService } from '../../services/invoiceService';
 import { Invoice } from '../../types/invoice';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import Autocomplete from '@mui/material/Autocomplete';
+import Button from '@mui/material/Button';
+import SearchIcon from '@mui/icons-material/Search';
+import match from 'autosuggest-highlight/match';
+import parse from 'autosuggest-highlight/parse';
+import { User } from '../../types/user';
+import { userService } from '../../services/userService';
 
 export const ReportsDashboard: React.FC = () => {
   const [year, setYear] = useState<string>(new Date().getFullYear().toString());
-  const [includeAllYears, setIncludeAllYears] = useState<boolean>(false);
+  const [monthFilter, setMonthFilter] = useState<string>('all');
+  const [statusFilters, setStatusFilters] = useState<Record<string, boolean>>({ paid: true, on_time: true, delayed: true });
+  const [clientSearch, setClientSearch] = useState<string>('');
+  const [selectedClient, setSelectedClient] = useState<User | null>(null);
+  const [startDateFilter, setStartDateFilter] = useState<Date | null>(null);
+  const [endDateFilter, setEndDateFilter] = useState<Date | null>(null);
+  const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>('all');
+  const [minAmount, setMinAmount] = useState<number | ''>('');
+  const [maxAmount, setMaxAmount] = useState<number | ''>('');
   const { data: invoices = [], isLoading, error } = useQuery<Invoice[], Error>({
     queryKey: ['invoices'],
     queryFn: () => invoiceService.getAllInvoices(),
     staleTime: 300000,
   });
+  const { data: clientOptions = [] } = useQuery<User[], Error, User[]>({
+    queryKey: ['clientOptions', clientSearch],
+    queryFn: async () => {
+      const res = await userService.getUsersPaginated(1, 100, clientSearch);
+      return res.data.filter(u => u.role === 'client');
+    },
+    staleTime: 300000
+  });
+
+  const resetFilters = () => {
+    setYear(new Date().getFullYear().toString());
+    setMonthFilter('all');
+    setStatusFilters({ paid: true, on_time: true, delayed: true });
+    setSelectedClient(null);
+    setClientSearch('');
+    setStartDateFilter(null);
+    setEndDateFilter(null);
+    setPaymentTypeFilter('all');
+    setMinAmount('');
+    setMaxAmount('');
+  };
 
   if (isLoading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress /></Box>;
   if (error || !invoices) return <Box sx={{ mt: 4 }}>Error al cargar reportes: {error?.message}</Box>;
@@ -23,12 +62,22 @@ export const ReportsDashboard: React.FC = () => {
   // Opciones de años disponibles
   const years = Array.from(new Set(invoices.map(inv => inv.date.substring(0,4))))
     .sort((a, b) => Number(b) - Number(a));
-  // Filtrar facturas por año seleccionado
-  const filteredInvoices = invoices.filter(inv => inv.date.startsWith(year));
-  // Calcular estados dinámicos
-  const dynamicInvoices = filteredInvoices.map(inv => ({ ...inv, status: computeInvoiceStatus(inv).status }));
-  // Dynamic for all years (sin filtrar)
-  const dynamicAllInvoices = invoices.map(inv => ({ ...inv, status: computeInvoiceStatus(inv).status }));
+  // Filtrar por año (o incluir todos los años)
+  const baseInvoices = year === 'all'
+    ? invoices
+    : invoices.filter(inv => inv.date.startsWith(year));
+  // Calcular estado dinámico inicial
+  const dynamicBaseInvoices = baseInvoices.map(inv => ({ ...inv, status: computeInvoiceStatus(inv).status }));
+  // Aplicar filtros adicionales
+  const filteredInvoices = dynamicBaseInvoices
+    .filter(inv => monthFilter === 'all' || inv.date.substring(5,7) === monthFilter)
+    .filter(inv => statusFilters[inv.status])
+    .filter(inv => !selectedClient || inv.clientId === selectedClient.id)
+    .filter(inv => !startDateFilter || new Date(inv.date) >= startDateFilter)
+    .filter(inv => !endDateFilter || new Date(inv.date) <= endDateFilter)
+    .filter(inv => paymentTypeFilter === 'all' || inv.paymentType === paymentTypeFilter)
+    .filter(inv => minAmount === '' || inv.total >= minAmount)
+    .filter(inv => maxAmount === '' || inv.total <= maxAmount);
 
   // Agrupar por mes (01..12)
   const monthsList = Array.from({length:12}, (_,i) => (i+1).toString().padStart(2,'0'));
@@ -48,7 +97,7 @@ export const ReportsDashboard: React.FC = () => {
     paymentsByMonth[m] = 0;
   });
   // Llenar datos
-  dynamicInvoices.forEach(inv => {
+  filteredInvoices.forEach(inv => {
     const m = inv.date.substring(5,7);
     revenueByMonth[m] += inv.total;
     countByMonth[m] += 1;
@@ -81,6 +130,8 @@ export const ReportsDashboard: React.FC = () => {
     'Retrasadas': delayedByMonth[m]
   }));
 
+  console.log('Años disponibles en facturas:', years);
+
   return (
     <>
       <Navigation title="Reportes" />
@@ -97,9 +148,151 @@ export const ReportsDashboard: React.FC = () => {
               value={year}
               onChange={e => setYear(e.target.value)}
             >
+              <MenuItem value="all">Todos</MenuItem>
               {years.map(y => <MenuItem key={y} value={y}>{y}</MenuItem>)}
             </Select>
           </FormControl>
+          <Button variant="outlined" size="small" onClick={resetFilters} sx={{ ml: 2, mb: 3 }}>
+            Limpiar filtros
+          </Button>
+          {/* Filtros adicionales */}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
+            {/* Mes */}
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel id="month-filter-label">Mes</InputLabel>
+              <Select
+                labelId="month-filter-label"
+                label="Mes"
+                value={monthFilter}
+                onChange={e => setMonthFilter(e.target.value)}
+              >
+                <MenuItem value="all">Todos</MenuItem>
+                {monthsList.map((m, i) => (
+                  <MenuItem key={m} value={m}>{monthNames[i]}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            {/* Estado */}
+            <FormControl component="fieldset">
+              <Typography variant="subtitle2">Estado</Typography>
+              <FormGroup row>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      size="small"
+                      checked={statusFilters.on_time}
+                      onChange={() => setStatusFilters(prev => ({ ...prev, on_time: !prev.on_time }))}
+                    />
+                  }
+                  label="A tiempo"
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      size="small"
+                      checked={statusFilters.paid}
+                      onChange={() => setStatusFilters(prev => ({ ...prev, paid: !prev.paid }))}
+                    />
+                  }
+                  label="Pagadas"
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      size="small"
+                      checked={statusFilters.delayed}
+                      onChange={() => setStatusFilters(prev => ({ ...prev, delayed: !prev.delayed }))}
+                    />
+                  }
+                  label="Retrasadas"
+                />
+              </FormGroup>
+            </FormControl>
+            {/* Cliente */}
+            <Autocomplete
+              size="small"
+              sx={{ minWidth: 200 }}
+              options={clientOptions}
+              getOptionLabel={option => option.fullName}
+              filterOptions={(options: User[], state: any) => options}
+              onInputChange={(e, value) => setClientSearch(value)}
+              onChange={(e, value) => setSelectedClient(value)}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              renderInput={params => (
+                <TextField
+                  {...params}
+                  label="Cliente"
+                  size="small"
+                  InputProps={{
+                    ...params.InputProps,
+                    startAdornment: (
+                      <>
+                        <SearchIcon fontSize="small" />
+                        {params.InputProps.startAdornment}
+                      </>
+                    )
+                  }}
+                />
+              )}
+              renderOption={(props: any, option: User, { inputValue }: { inputValue: string }) => {
+                const matches = match(option.fullName, inputValue);
+                const parts = parse(option.fullName, matches) as { text: string; highlight: boolean }[];
+                return (
+                  <li {...props}>
+                    {parts.map((part, index) => (
+                      <span key={index} style={{ fontWeight: part.highlight ? 700 : 400 }}>
+                        {part.text}
+                      </span>
+                    ))}
+                  </li>
+                );
+              }}
+            />
+            {/* Fecha */}
+            <LocalizationProvider dateAdapter={AdapterDateFns}>
+              <DatePicker
+                label="Desde"
+                value={startDateFilter}
+                onChange={date => setStartDateFilter(date)}
+                slotProps={{ textField: { size: 'small' } }}
+              />
+              <DatePicker
+                label="Hasta"
+                value={endDateFilter}
+                onChange={date => setEndDateFilter(date)}
+                slotProps={{ textField: { size: 'small' } }}
+              />
+            </LocalizationProvider>
+            {/* Tipo de pago */}
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel id="payment-type-filter-label">Tipo Pago</InputLabel>
+              <Select
+                labelId="payment-type-filter-label"
+                label="Tipo Pago"
+                value={paymentTypeFilter}
+                onChange={e => setPaymentTypeFilter(e.target.value)}
+              >
+                <MenuItem value="all">Todos</MenuItem>
+                <MenuItem value="cash">Contado</MenuItem>
+                <MenuItem value="credit">Crédito</MenuItem>
+              </Select>
+            </FormControl>
+            {/* Rango de montos */}
+            <TextField
+              size="small"
+              type="number"
+              label="Monto min"
+              value={minAmount}
+              onChange={e => setMinAmount(e.target.value === '' ? '' : Number(e.target.value))}
+            />
+            <TextField
+              size="small"
+              type="number"
+              label="Monto max"
+              value={maxAmount}
+              onChange={e => setMaxAmount(e.target.value === '' ? '' : Number(e.target.value))}
+            />
+          </Box>
           {/* Gráficos mensuales */}
           <Box sx={{ mb: 4 }}>
             <Typography variant="h6" gutterBottom>Ventas por mes</Typography>
@@ -154,21 +347,10 @@ export const ReportsDashboard: React.FC = () => {
           </Box>
           {/* Encabezado de resumen: año o toda la data */}
           <Typography variant="h5" component="h3" gutterBottom>
-            {includeAllYears ? 'Toda la data' : `Año ${year}`}
+            {year === 'all' ? 'Toda la data' : `Año ${year}`}
           </Typography>
-          {/* Filtro de resumen: todos los años */}
-          <FormControlLabel
-            control={
-              <Checkbox
-                size="small"
-                checked={includeAllYears}
-                onChange={e => setIncludeAllYears(e.target.checked)}
-              />
-            }
-            label="Todos los años"
-          />
           <DashboardSummary
-            invoices={includeAllYears ? dynamicAllInvoices : dynamicInvoices}
+            invoices={filteredInvoices}
           />
         </Box>
       </Container>
