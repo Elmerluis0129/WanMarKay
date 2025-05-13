@@ -2,7 +2,11 @@ import React from 'react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Legend, Tooltip } from 'recharts';
 import { Invoice } from '../../types/invoice';
 
-const COLORS = ['#FFC107', '#4CAF50', '#F44336', '#9E9E9E'];
+const STATUS_COLORS: Record<string, string> = {
+  delayed: '#FFC107', // Retrasadas - amarillo
+  on_time: '#4CAF50',  // A tiempo - verde
+  paid: '#E31C79',     // Pagadas - rosado
+};
 
 interface SummaryChartProps {
   invoices: Invoice[];
@@ -28,8 +32,8 @@ export const SummaryChart: React.FC<SummaryChartProps> = ({ invoices }) => {
           outerRadius={80}
           label
         >
-          {data.map((entry, index) => (
-            <Cell key={entry.name} fill={COLORS[index % COLORS.length]} />
+          {data.map((entry) => (
+            <Cell key={entry.name} fill={STATUS_COLORS[entry.name] || '#9E9E9E'} />
           ))}
         </Pie>
         <Tooltip />

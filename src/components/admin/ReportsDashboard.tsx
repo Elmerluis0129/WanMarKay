@@ -147,8 +147,8 @@ export const ReportsDashboard: React.FC = () => {
                 <Tooltip />
                 <Legend />
                 <Bar dataKey="A tiempo" stackId="a" name="A tiempo" fill="#4CAF50" />
-                <Bar dataKey="Pagadas" stackId="a" name="Pagadas" fill="#2196F3" />
-                <Bar dataKey="Retrasadas" stackId="a" name="Retrasadas" fill="#F44336" />
+                <Bar dataKey="Pagadas" stackId="a" name="Pagadas" fill="#E31C79" />
+                <Bar dataKey="Retrasadas" stackId="a" name="Retrasadas" fill="#FFC107" />
               </BarChart>
             </ResponsiveContainer>
           </Box>
