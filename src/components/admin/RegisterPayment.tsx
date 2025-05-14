@@ -55,19 +55,26 @@ export const RegisterPayment: React.FC = () => {
     // Calcular mora pendiente o 0
     const pendingLateFee = selectedInvoice?.lateFeeAmount ?? 0;
 
-    // Cargar facturas pendientes o en curso
+    // Cargar factura(s) según si viene id o todas las pendientes
     useEffect(() => {
         (async () => {
             try {
-                const data = await invoiceService.getAllInvoices();
-                const pending = data.filter(inv => inv.status !== 'paid' && inv.status !== 'cancelled');
-                setInvoices(pending);
+                if (invoiceIdFromState) {
+                    // Solo cargar la factura específica para disminuir egress
+                    const inv = await invoiceService.getInvoiceById(invoiceIdFromState);
+                    setInvoices([inv]);
+                    setSelectedInvoice(inv);
+                } else {
+                    const data = await invoiceService.getAllInvoices();
+                    const pending = data.filter(inv => inv.status !== 'paid' && inv.status !== 'cancelled');
+                    setInvoices(pending);
+                }
             } catch (err: any) {
                 console.error('Error cargando facturas:', err);
                 setLoadError(err.message || JSON.stringify(err));
             }
         })();
-    }, []);
+    }, [invoiceIdFromState]);
 
     // Preseleccionar factura si viene en el estado de navegación
     useEffect(() => {
@@ -211,32 +218,34 @@ export const RegisterPayment: React.FC = () => {
                         Registrar Pago
                     </Typography>
                     {/* Si no hay facturas disponibles, mostrar alerta y no mostrar el formulario */}
-                    {invoices.length === 0 ? (
+                    {invoices.length === 0 && !invoiceIdFromState ? (
                         <Alert severity="info">Debe crear al menos una factura primero para registrar un pago.</Alert>
                     ) : (
                         <Box component="form" onSubmit={handlePaymentSubmit}>
                             <Grid container spacing={2}>
                                 {/* Selector de factura */}
-                                <Grid item xs={12}>
-                                    <Autocomplete
-                                        value={selectedInvoice}
-                                        onChange={(_, newValue) => {
-                                            setSelectedInvoice(newValue);
-                                            setAmount('');
-                                        }}
-                                        options={invoices}
-                                        getOptionLabel={inv => `#${inv.invoiceNumber} - ${inv.clientName}`}
-                                        isOptionEqualToValue={(opt, val) => opt.id === val.id}
-                                        renderInput={params => (
-                                            <TextField
-                                                {...params}
-                                                label="Seleccionar Factura"
-                                                fullWidth
-                                                required
-                                            />
-                                        )}
-                                    />
-                                </Grid>
+                                {!invoiceIdFromState && (
+                                    <Grid item xs={12}>
+                                        <Autocomplete
+                                            value={selectedInvoice}
+                                            onChange={(_, newValue) => {
+                                                setSelectedInvoice(newValue);
+                                                setAmount('');
+                                            }}
+                                            options={invoices}
+                                            getOptionLabel={inv => `#${inv.invoiceNumber} - ${inv.clientName}`}
+                                            isOptionEqualToValue={(opt, val) => opt.id === val.id}
+                                            renderInput={params => (
+                                                <TextField
+                                                    {...params}
+                                                    label="Seleccionar Factura"
+                                                    fullWidth
+                                                    required
+                                                />
+                                            )}
+                                        />
+                                    </Grid>
+                                )}
                                 {selectedInvoice && (
                                     <> 
                                         {/* Datos del cliente */}

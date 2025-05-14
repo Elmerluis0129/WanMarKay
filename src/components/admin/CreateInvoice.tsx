@@ -113,14 +113,20 @@ export const CreateInvoice: React.FC = () => {
     const [snackbarMessage, setSnackbarMessage] = useState('');
     const [snackbarSeverity, setSnackbarSeverity] = useState<'success'|'error'>('success');
 
-    // Estado para imagen adjunta y su preview
-    const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
-    const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
-
-    // Estado para diálogo de confirmación si no hay imagen
-    const [openNoImageDialog, setOpenNoImageDialog] = useState<boolean>(false);
-
     const [invoiceNumberError, setInvoiceNumberError] = useState<string>('');
+
+    // Cargar la lista de clientes al montar el componente
+    useEffect(() => {
+        (async () => {
+            try {
+                const users = await userService.getUsers();
+                const clients = users.filter(u => u.role === 'client');
+                setAvailableClients(clients);
+            } catch (err: any) {
+                console.error('Error cargando clientes:', err);
+            }
+        })();
+    }, []);
 
     // Autocompletar datos de address, cédula y teléfono al cambiar cliente
     useEffect(() => {
@@ -133,31 +139,6 @@ export const CreateInvoice: React.FC = () => {
             }));
         }
     }, [selectedClient]);
-
-    // Handler para el input file
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            console.log('🖼️ Archivo seleccionado:', file.name, file.type, file.size, file);
-        }
-        if (file) {
-            setAttachmentFile(file);
-            const reader = new FileReader();
-            reader.onload = () => {
-                setAttachmentPreview(reader.result as string);
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    // Cargar la lista de clientes al montar el componente
-    useEffect(() => {
-        (async () => {
-            const users = await userService.getUsers();
-            const clients = users.filter(u => u.role === 'client');
-            setAvailableClients(clients);
-        })();
-    }, []);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({
@@ -234,13 +215,6 @@ export const CreateInvoice: React.FC = () => {
         try {
             // La fecha ya viene en ISO YYYY-MM-DD desde el input nativo
             const isoDate = formData.date;
-            // Generar ID y subir imagen si existe
-            const id = uuidv4();
-            let publicUrl: string | undefined;
-            if (attachmentFile) {
-                // Subir el archivo a Imgur y obtener la URL pública corta
-                publicUrl = await storageService.uploadFacturaImage(attachmentFile);
-            }
             const { subtotal, total } = calculateTotal();
             const currentUser = auth.getCurrentUser();
             const startDate = new Date(isoDate);
@@ -255,7 +229,7 @@ export const CreateInvoice: React.FC = () => {
             const diffDays = Math.ceil((nextPaymentDate.getTime() - today.getTime())/(1000*60*60*24));
             const initialStatus = diffDays < 0 ? 'delayed' : 'on_time';
             const newInvoice: Invoice = {
-                id,
+                id: uuidv4(),
                 invoiceNumber: formData.invoiceNumber,
                 date: isoDate,
                 clientName: selectedClient!.fullName,
@@ -263,7 +237,6 @@ export const CreateInvoice: React.FC = () => {
                 address: formData.address || undefined,
                 cedula: formData.cedula || undefined,
                 phone: formData.phone || undefined,
-                ...(publicUrl && { attachment: publicUrl }),
                 items, subtotal, total,
                 remainingAmount: total,
                 status: initialStatus,
@@ -297,7 +270,6 @@ export const CreateInvoice: React.FC = () => {
                 address: newInvoice.address,
                 cedula: newInvoice.cedula,
                 phone: newInvoice.phone,
-                attachment: publicUrl,
                 items: newInvoice.items,
                 subtotal: newInvoice.subtotal,
                 total: newInvoice.total,
@@ -315,7 +287,6 @@ export const CreateInvoice: React.FC = () => {
             setFormData({ invoiceNumber:'', date:new Date().toISOString().split('T')[0], address:'', cedula:'', phone:'' });
             setSelectedClient(null); setItems([]); setPaymentType('cash');
             setPaymentPlan({ frequency:'biweekly', totalInstallments:1, installmentAmount:0, startDate:new Date().toISOString().split('T')[0]});
-            setAttachmentFile(null); setAttachmentPreview(null);
         } catch (error: any) {
             console.error('Error creando factura', error);
             const msg = error?.message || JSON.stringify(error);
@@ -348,10 +319,6 @@ export const CreateInvoice: React.FC = () => {
                 setSnackbarMessage('Por favor seleccione un cliente'); setSnackbarSeverity('error'); setSnackbarOpen(true);
                 return;
             }
-            if (!attachmentPreview) {
-                setOpenNoImageDialog(true);
-                return;
-            }
             await saveInvoice();
         } catch (error: any) {
             console.error('Error al crear factura', error);
@@ -363,19 +330,6 @@ export const CreateInvoice: React.FC = () => {
     };
 
     const totals = calculateTotal();
-
-    const confirmWithoutImage = async () => {
-        setOpenNoImageDialog(false);
-        try {
-            await saveInvoice();
-        } catch (error: any) {
-            console.error('Error creando factura sin imagen', error);
-            const msg = error?.message || JSON.stringify(error);
-            setSnackbarMessage(`Error creando factura: ${msg}`);
-            setSnackbarSeverity('error');
-            setSnackbarOpen(true);
-        }
-    };
 
     // Validar en tiempo real si el número de factura ya existe
     useEffect(() => {
@@ -521,27 +475,6 @@ export const CreateInvoice: React.FC = () => {
                                         value={formatPhone(formData.phone)}
                                         disabled
                                     />
-                                </Grid>
-                            </Grid>
-
-                            <Grid container spacing={2} sx={{ mb: 3 }}>
-                                <Grid item xs={12}>
-                                    <Button
-                                        variant="contained"
-                                        component="label"
-                                        sx={{ backgroundColor: '#E31C79', '&:hover': { backgroundColor: '#C4156A' } }}
-                                    >
-                                        Subir Imagen de Factura
-                                        <input type="file" hidden accept="image/*" onChange={handleFileChange} />
-                                    </Button>
-                                    {attachmentPreview && (
-                                        <Box
-                                            component="img"
-                                            src={attachmentPreview}
-                                            alt="Previsualización de factura"
-                                            sx={{ mt: 2, maxWidth: '100%', maxHeight: 200 }}
-                                        />
-                                    )}
                                 </Grid>
                             </Grid>
 
@@ -764,20 +697,6 @@ export const CreateInvoice: React.FC = () => {
                     </Paper>
                 </Box>
             </Container>
-            <Dialog open={openNoImageDialog} onClose={() => setOpenNoImageDialog(false)}>
-                <DialogTitle>¿Crear factura sin imagen?</DialogTitle>
-                <DialogContent>
-                    <Typography>
-                        No ha subido una imagen de la factura. ¿Está seguro que desea continuar sin imagen?
-                    </Typography>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setOpenNoImageDialog(false)}>Cancelar</Button>
-                    <Button variant="contained" onClick={confirmWithoutImage}>
-                        Agregar después. No tengo factura física
-                    </Button>
-                </DialogActions>
-            </Dialog>
         </>
     );
 }; 

@@ -8,7 +8,7 @@ export const invoiceService = {
   getAllInvoices: async (): Promise<Invoice[]> => {
     const { data, error } = await supabase
       .from('invoices')
-      .select('*');
+      .select('id,invoice_number,date,client_id,client_name,address,cedula,phone,items,subtotal,total,remaining_amount,status,discount_percentage,late_fee_percentage,late_fee_amount,payment_type,payment_plan,next_payment_due');
     if (error) throw error;
     return (data || []).map((d: any) => {
       const inv: Invoice = {
@@ -47,7 +47,7 @@ export const invoiceService = {
     const to = from + pageSize - 1;
     const { data, error, count } = await supabase
       .from('invoices')
-      .select('*', { count: 'exact' })
+      .select('id,invoice_number,date,client_id,client_name,address,cedula,phone,items,subtotal,total,remaining_amount,status,discount_percentage,late_fee_percentage,late_fee_amount,payment_type,payment_plan,next_payment_due', { count: 'exact' })
       .range(from, to);
     if (error) throw error;
     const invoices: Invoice[] = (data || []).map((d: any) => {
@@ -93,7 +93,6 @@ export const invoiceService = {
       address: invoice.address,
       cedula: invoice.cedula,
       phone: invoice.phone,
-      attachment: invoice.attachment,
       items: invoice.items,
       subtotal: invoice.subtotal,
       total: invoice.total,
@@ -109,7 +108,7 @@ export const invoiceService = {
     const { data, error } = await supabase
       .from('invoices')
       .insert([payload])
-      .select()
+      .select('id,invoice_number,date,client_id,client_name,address,cedula,phone,items,subtotal,total,remaining_amount,status,discount_percentage,late_fee_percentage,late_fee_amount,payment_type,payment_plan,next_payment_due')
       .single();
     if (error || !data) throw error;
     {// Transformo a Invoice
@@ -123,7 +122,6 @@ export const invoiceService = {
         address: d.address || undefined,
         cedula: d.cedula || undefined,
         phone: d.phone || undefined,
-        attachment: d.attachment || undefined,
         items: d.items,
         subtotal: d.subtotal,
         total: d.total,
@@ -157,7 +155,6 @@ export const invoiceService = {
       address: invoice.address,
       cedula: invoice.cedula,
       phone: invoice.phone,
-      attachment: invoice.attachment,
       items: invoice.items,
       subtotal: invoice.subtotal,
       total: invoice.total,
@@ -174,7 +171,7 @@ export const invoiceService = {
       .from('invoices')
       .update(payload)
       .eq('id', invoice.id)
-      .select()
+      .select('id,invoice_number,date,client_id,client_name,address,cedula,phone,items,subtotal,total,remaining_amount,status,discount_percentage,late_fee_percentage,late_fee_amount,payment_type,payment_plan,next_payment_due')
       .single();
     if (error || !data) throw error;
     {// Transformo a Invoice
@@ -188,7 +185,6 @@ export const invoiceService = {
         address: d.address || undefined,
         cedula: d.cedula || undefined,
         phone: d.phone || undefined,
-        attachment: d.attachment || undefined,
         items: d.items,
         subtotal: d.subtotal,
         total: d.total,
@@ -208,7 +204,7 @@ export const invoiceService = {
   getClientInvoices: async (clientId: string): Promise<Invoice[]> => {
     const { data, error } = await supabase
       .from('invoices')
-      .select('*')
+      .select('id,invoice_number,date,client_id,client_name,address,cedula,phone,items,subtotal,total,remaining_amount,status,discount_percentage,late_fee_percentage,late_fee_amount,payment_type,payment_plan,next_payment_due')
       .eq('client_id', clientId);
     if (error) throw error;
     return (data || []).map((d: any) => {
@@ -240,5 +236,43 @@ export const invoiceService = {
       }
       return inv;
     });
+  },
+
+  // Obtener una factura por id sin traer todas para reducir egress
+  getInvoiceById: async (id: string): Promise<Invoice> => {
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('id,invoice_number,date,client_id,client_name,address,cedula,phone,items,subtotal,total,remaining_amount,status,discount_percentage,late_fee_percentage,late_fee_amount,payment_type,payment_plan,next_payment_due')
+      .eq('id', id)
+      .single();
+    if (error || !data) throw error;
+    const d: any = data;
+    const inv: Invoice = {
+      id: d.id,
+      invoiceNumber: d.invoice_number,
+      date: d.date,
+      clientId: d.client_id,
+      clientName: d.client_name,
+      address: d.address || undefined,
+      cedula: d.cedula || undefined,
+      phone: d.phone || undefined,
+      attachment: d.attachment || undefined,
+      items: d.items,
+      subtotal: d.subtotal,
+      total: d.total,
+      remainingAmount: d.remaining_amount,
+      status: d.status,
+      discountPercentage: d.discount_percentage ?? 0,
+      lateFeePercentage: d.late_fee_percentage ?? 0,
+      lateFeeAmount: d.late_fee_amount ?? 0,
+      paymentType: d.payment_type,
+      paymentPlan: d.payment_plan,
+      payments: d.payments,
+      nextPaymentDue: d.next_payment_due || undefined,
+    } as Invoice;
+    if (inv.paymentType === 'credit') {
+      inv.status = computeInvoiceStatus(inv).status;
+    }
+    return inv;
   },
 }; 
