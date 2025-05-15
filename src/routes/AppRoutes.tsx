@@ -19,6 +19,7 @@ import NoResults from '../components/shared/NoResults';
 import ComingSoon from '../components/shared/ComingSoon';
 import UserProfile from '../components/shared/UserProfile';
 import FAQ from '../components/shared/FAQ';
+import About from '../components/shared/About';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -111,6 +112,7 @@ export const AppRoutes: React.FC = () => {
       <Route path="/coming-soon" element={<ComingSoon />} />
       <Route path="/profile" element={<PrivateRoute><UserProfile /></PrivateRoute>} />
       <Route path="/faq" element={<FAQ />} />
+      <Route path="/about" element={<About />} />
       {/* Ruta 404: Página no encontrada */}
       <Route path="*" element={<NotFound />} />
     </Routes>

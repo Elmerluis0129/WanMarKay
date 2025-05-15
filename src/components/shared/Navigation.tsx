@@ -11,6 +11,7 @@ import {
     ListItem,
     ListItemIcon,
     ListItemText,
+    Box,
 } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -24,6 +25,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import { auth } from '../../services/auth';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
+import logoImage from '../../assest/logo.jpg';
 
 interface NavigationProps {
     title?: string;
@@ -47,7 +49,7 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
     return (
         <>
             <AppBar position="static" sx={{ backgroundColor: '#E31C79', mb: 3 }}>
-                <Toolbar>
+                <Toolbar sx={{ minHeight: 64 }}>
                     {isMobile && (
                         <IconButton
                             color="inherit"
@@ -57,21 +59,49 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                             <MenuIcon />
                         </IconButton>
                     )}
-                    <Typography variant="h6" component="div" sx={{ flexGrow: 1, ml: isMobile ? 1 : 0 }}>
+                    <Box
+                        sx={{
+                            background: '#fff',
+                            borderRadius: '50%',
+                            p: 0.5,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            mr: 2,
+                            cursor: 'pointer',
+                            height: 48,
+                            width: 48,
+                            justifyContent: 'center'
+                        }}
+                        onClick={() => navigate('/')}
+                    >
+                        <Box
+                            component="img"
+                            src={logoImage}
+                            alt="Mary Kay Logo"
+                            sx={{
+                                height: 38,
+                                width: 38,
+                                objectFit: 'contain',
+                                display: 'block'
+                            }}
+                        />
+                    </Box>
+                    <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
                         {title}
                     </Typography>
                     {!isMobile && (
-                        <Stack direction="row" spacing={2}>
-                            {isAdmin && (
+                        <Stack direction="row" spacing={1}>
+                            {isAdmin ? (
                                 <>
                                     <Button 
                                         color="inherit"
-                                        variant={isActive('/admin/user/create') ? 'contained' : 'text'}
-                                        sx={isActive('/admin/user/create') ? { backgroundColor: '#ffffff', color: '#000000' } : {}}
-                                        onClick={() => navigate('/admin/user/create')}
-                                        startIcon={<PersonAddIcon fontSize="small" />}
+                                        variant={isActive('/admin') ? 'contained' : 'text'}
+                                        sx={isActive('/admin') ? { backgroundColor: '#ffffff', color: '#000000' } : {}}
+                                        onClick={() => navigate('/admin')}
+                                        startIcon={<ReceiptIcon fontSize="small" />}
                                     >
-                                        Crear Usuario
+                                        Ver Facturas
                                     </Button>
                                     <Button 
                                         color="inherit"
@@ -84,30 +114,12 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                     </Button>
                                     <Button 
                                         color="inherit"
-                                        variant={isActive('/admin/payment/register') ? 'contained' : 'text'}
-                                        sx={isActive('/admin/payment/register') ? { backgroundColor: '#ffffff', color: '#000000' } : {}}
-                                        onClick={() => navigate('/admin/payment/register')}
-                                        startIcon={<PaymentIcon fontSize="small" />}
+                                        variant={isActive('/admin/user/create') ? 'contained' : 'text'}
+                                        sx={isActive('/admin/user/create') ? { backgroundColor: '#ffffff', color: '#000000' } : {}}
+                                        onClick={() => navigate('/admin/user/create')}
+                                        startIcon={<PersonAddIcon fontSize="small" />}
                                     >
-                                        Registrar Pago
-                                    </Button>
-                                    <Button 
-                                        color="inherit"
-                                        variant={isActive('/admin/user/list') ? 'contained' : 'text'}
-                                        sx={isActive('/admin/user/list') ? { backgroundColor: '#ffffff', color: '#000000' } : {}}
-                                        onClick={() => navigate('/admin/user/list')}
-                                        startIcon={<PeopleIcon fontSize="small" />}
-                                    >
-                                        Ver Usuarios
-                                    </Button>
-                                    <Button 
-                                        color="inherit"
-                                        variant={isActive('/admin') ? 'contained' : 'text'}
-                                        sx={isActive('/admin') ? { backgroundColor: '#ffffff', color: '#000000' } : {}}
-                                        onClick={() => navigate('/admin')}
-                                        startIcon={<ReceiptIcon fontSize="small" />}
-                                    >
-                                        Ver Facturas
+                                        Crear Usuario
                                     </Button>
                                     <Button 
                                         color="inherit"
@@ -128,8 +140,7 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                         Reportes
                                     </Button>
                                 </>
-                            )}
-                            {!isAdmin && (
+                            ) : (
                                 <Button 
                                     color="inherit"
                                     variant={isActive('/client') ? 'contained' : 'text'}
@@ -141,9 +152,17 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                 </Button>
                             )}
                             <Button 
+                                color="inherit"
+                                variant={isActive('/about') ? 'contained' : 'text'}
+                                sx={isActive('/about') ? { backgroundColor: '#ffffff', color: '#000000' } : {}}
+                                onClick={() => navigate('/about')}
+                            >
+                                Sobre mí
+                            </Button>
+                            <Button 
                                 color="inherit" 
                                 onClick={handleLogout}
-                                startIcon={<LogoutIcon fontSize="small" />}
+                                startIcon={<LogoutIcon />}
                             >
                                 Cerrar Sesión
                             </Button>
@@ -157,8 +176,16 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                 onClose={() => setDrawerOpen(false)}
             >
                 <List sx={{ width: 250 }}>
-                    {auth.isAdmin() ? (
+                    {isAdmin ? (
                         <>
+                            <ListItem
+                                button
+                                selected={isActive('/admin')}
+                                onClick={() => { navigate('/admin'); setDrawerOpen(false); }}
+                            >
+                                <ListItemIcon><ReceiptIcon /></ListItemIcon>
+                                <ListItemText primary="Ver Facturas" />
+                            </ListItem>
                             <ListItem
                                 button
                                 selected={isActive('/admin/invoice/create')}
@@ -177,26 +204,10 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                             </ListItem>
                             <ListItem
                                 button
-                                selected={isActive('/admin/user/list')}
-                                onClick={() => { navigate('/admin/user/list'); setDrawerOpen(false); }}
-                            >
-                                <ListItemIcon><PeopleIcon /></ListItemIcon>
-                                <ListItemText primary="Ver Usuarios" />
-                            </ListItem>
-                            <ListItem
-                                button
-                                selected={isActive('/admin/payment/register')}
-                                onClick={() => { navigate('/admin/payment/register'); setDrawerOpen(false); }}
-                            >
-                                <ListItemIcon><PaymentIcon /></ListItemIcon>
-                                <ListItemText primary="Registrar Pago" />
-                            </ListItem>
-                            <ListItem
-                                button
                                 selected={isActive('/admin/payment/list')}
                                 onClick={() => { navigate('/admin/payment/list'); setDrawerOpen(false); }}
                             >
-                                <ListItemIcon><ReceiptIcon /></ListItemIcon>
+                                <ListItemIcon><PaymentIcon /></ListItemIcon>
                                 <ListItemText primary="Ver Pagos" />
                             </ListItem>
                             <ListItem
@@ -206,14 +217,6 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                             >
                                 <ListItemIcon><AssessmentIcon /></ListItemIcon>
                                 <ListItemText primary="Reportes" />
-                            </ListItem>
-                            <ListItem
-                                button
-                                selected={isActive('/admin')}
-                                onClick={() => { navigate('/admin'); setDrawerOpen(false); }}
-                            >
-                                <ListItemIcon><ReceiptIcon /></ListItemIcon>
-                                <ListItemText primary="Ver Facturas" />
                             </ListItem>
                         </>
                     ) : (
@@ -226,6 +229,13 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                             <ListItemText primary="Mis Facturas" />
                         </ListItem>
                     )}
+                    <ListItem
+                        button
+                        selected={isActive('/about')}
+                        onClick={() => { navigate('/about'); setDrawerOpen(false); }}
+                    >
+                        <ListItemText primary="Sobre mí" />
+                    </ListItem>
                     <ListItem button onClick={handleLogout}>
                         <ListItemIcon><LogoutIcon /></ListItemIcon>
                         <ListItemText primary="Cerrar Sesión" />
