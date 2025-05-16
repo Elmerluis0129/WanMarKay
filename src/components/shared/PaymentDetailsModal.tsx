@@ -743,6 +743,15 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                     {/* Acciones Finales */}
                     <Divider sx={{ my: 2 }} />
                     <Stack direction="row" justifyContent="flex-end" spacing={1}>
+                        {auth.isAdmin() && invoice.paymentPlan && paymentHistory.length >= 1 && (
+                            <Button
+                                variant="outlined"
+                                color="primary"
+                                onClick={() => navigate('/admin/payment/list', { state: { search: invoice.invoiceNumber } })}
+                            >
+                                {paymentHistory.length === 1 ? 'Ver pago' : 'Ver pagos'}
+                            </Button>
+                        )}
                         {auth.isAdmin() && invoice.paymentPlan && (
                             <Button variant="contained" onClick={() => navigate('/admin/payment/register', { state: { invoiceId: invoice.id } })}>
                                 Registrar Pago

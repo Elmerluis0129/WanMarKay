@@ -9,7 +9,6 @@ import {
 } from '@mui/material';
 import { auth } from '../../services/auth';
 import { useNavigate } from 'react-router-dom';
-import logo from '../../assest/logo.jpg';
 import { motion } from 'framer-motion';
 
 export const Login: React.FC = () => {
@@ -132,7 +131,7 @@ export const Login: React.FC = () => {
                         }}
                         style={{ width: '100%', display: 'flex', justifyContent: 'center', marginBottom: 16 }}
                     >
-                        <img src={logo} alt="Logo" style={{ maxWidth: 180, width: '100%', height: 'auto', borderRadius: 12, boxShadow: '0 2px 12px rgba(227,28,121,0.10)' }} />
+                        {/* Logo dinámico */}
                     </motion.div>
                     {/* Título animado */}
                     <motion.div

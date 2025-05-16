@@ -9,6 +9,7 @@ export interface AboutMe {
   contactos: any;
   seccion_marykay: string;
   imagen_cuerpo_completo_url?: string;
+  logo_url?: string;
 }
 
 export const aboutMeService = {
@@ -30,6 +31,7 @@ export const aboutMeService = {
       .select()
       .single();
     if (error) throw error;
+    window.dispatchEvent(new Event('logo-updated'));
     return data;
   },
 

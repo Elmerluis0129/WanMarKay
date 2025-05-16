@@ -32,7 +32,7 @@ export const NotFound: React.FC = () => {
         <Button variant="outlined" onClick={() => navigate(-1)}>
           Volver atrás
         </Button>
-        <Button variant="contained" onClick={() => navigate('/')}
+        <Button variant="contained" onClick={() => navigate('/admin/reports')}
           sx={{ backgroundColor: '#E31C79', '&:hover': { backgroundColor: '#C4156A' } }}
         >
           Ir al inicio

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
     Container,
     Box,
@@ -52,6 +52,7 @@ export const RegisterPayment: React.FC = () => {
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [loadError, setLoadError] = useState<string|null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const navigate = useNavigate();
     // Calcular mora pendiente o 0
     const pendingLateFee = selectedInvoice?.lateFeeAmount ?? 0;
 
@@ -214,9 +215,30 @@ export const RegisterPayment: React.FC = () => {
             <Navigation title="Registrar Pago" />
             <Container maxWidth="md">
                 <Paper elevation={3} sx={{ mt: 4, p: 4, bgcolor: 'background.paper' }}>
-                    <Typography variant="h5" sx={{ color: '#E31C79', mb: 3 }}>
-                        Registrar Pago
-                    </Typography>
+                    {/* Botón Volver */}
+                    <Grid item xs={12}>
+                                    <Button
+                                        variant="text"
+                                        startIcon={<span role="img" aria-label="Volver">🔙</span>}
+                                        fullWidth
+                                        sx={{ color: '#E31C79', mt: 1, fontSize: '1.1rem' }}
+                                        onClick={() => {
+                                            navigate('/admin');
+                                        }}
+                                    >
+                                        Volver
+                                    </Button>
+                                </Grid>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                        <Typography variant="h5" sx={{ color: '#E31C79' }}>
+                            Registrar Pago
+                        </Typography>
+                    </Box>
+                    {selectedInvoice && (
+                        <Typography variant="subtitle1" sx={{ mb: 3 }}>
+                            Registrando pago para la Factura #{selectedInvoice.invoiceNumber}
+                        </Typography>
+                    )}
                     {/* Si no hay facturas disponibles, mostrar alerta y no mostrar el formulario */}
                     {invoices.length === 0 && !invoiceIdFromState ? (
                         <Alert severity="info">Debe crear al menos una factura primero para registrar un pago.</Alert>

@@ -18,6 +18,7 @@ import { paymentService } from '../../services/paymentService';
 import { Payment } from '../../types/invoice';
 import { useQuery } from '@tanstack/react-query';
 import { Loader } from '../shared/Loader';
+import { useLocation } from 'react-router-dom';
 
 // Funciones para resaltar coincidencias en filtros
 const escapeRegExp = (s: string): string => s.replace(/[-\\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -33,6 +34,7 @@ const highlightText = (text: string, highlight: string): React.ReactNode => {
 };
 
 export const PaymentList: React.FC = () => {
+  const location = useLocation();
   const [page, setPage] = useState(1);
   const pageSize = 10;
   // Usamos React Query para obtener pagos paginados
@@ -44,7 +46,9 @@ export const PaymentList: React.FC = () => {
   const payments = result?.data || [];
   const totalCount = result?.count || 0;
   const totalPages = Math.ceil(totalCount / pageSize);
-  const [filterText, setFilterText] = useState<string>('');
+  // Inicializar el filtro con el número de factura si viene en el estado
+  const initialFilter = location.state?.search || '';
+  const [filterText, setFilterText] = useState<string>(initialFilter);
   const [displayCount, setDisplayCount] = useState(0);
 
   // Búsqueda global: si hay texto, cargamos todos los pagos para filtrar
@@ -81,6 +85,14 @@ export const PaymentList: React.FC = () => {
     }, step);
     return () => clearInterval(timer);
   }, [filterText, filteredPayments.length, totalCount]);
+
+  useEffect(() => {
+    // Si cambia el location.state.search, actualiza el filtro
+    if (location.state?.search) {
+      setFilterText(location.state.search);
+      setPage(1);
+    }
+  }, [location.state?.search]);
 
   // Mostrar spinner si carga inicial o carga global de búsqueda
   if (filterText ? loadingAll : isLoading) {

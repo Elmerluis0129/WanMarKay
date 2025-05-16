@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     AppBar,
     Toolbar,
@@ -20,12 +20,14 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import PaymentIcon from '@mui/icons-material/Payment';
 import MenuIcon from '@mui/icons-material/Menu';
-import PeopleIcon from '@mui/icons-material/People';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import { auth } from '../../services/auth';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import logoImage from '../../assest/logo.jpg';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+import { aboutMeService } from '../../services/aboutMeService';
 
 interface NavigationProps {
     title?: string;
@@ -39,12 +41,45 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const [drawerOpen, setDrawerOpen] = useState(false);
     const isActive = (path: string) => location.pathname === path;
+    const [anchorElView, setAnchorElView] = useState<null | HTMLElement>(null);
+    const [anchorElRegister, setAnchorElRegister] = useState<null | HTMLElement>(null);
+    const [viewMenuOpen, setViewMenuOpen] = useState(false);
+    const [registerMenuOpen, setRegisterMenuOpen] = useState(false);
+    const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+    const handleOpenView = (event: React.MouseEvent<HTMLElement>) => setAnchorElView(event.currentTarget);
+    const handleCloseView = () => setAnchorElView(null);
+    const handleOpenRegister = (event: React.MouseEvent<HTMLElement>) => setAnchorElRegister(event.currentTarget);
+    const handleCloseRegister = () => setAnchorElRegister(null);
+    const handleViewMenuEnter = () => setViewMenuOpen(true);
+    const handleViewMenuLeave = () => setViewMenuOpen(false);
+    const handleRegisterMenuEnter = () => setRegisterMenuOpen(true);
+    const handleRegisterMenuLeave = () => setRegisterMenuOpen(false);
 
     const handleLogout = () => {
         // Limpiar credenciales y forzar redirección al login
         auth.logout();
         window.location.replace('/login');
     };
+
+    useEffect(() => {
+        // Función para cargar el logo
+        const fetchLogo = () => {
+            aboutMeService.getAboutMe().then(data => {
+                setLogoUrl(data.logo_url || null);
+            });
+        };
+
+        fetchLogo(); // Carga inicial
+
+        // Escuchar el evento custom
+        window.addEventListener('logo-updated', fetchLogo);
+
+        // Limpieza
+        return () => {
+            window.removeEventListener('logo-updated', fetchLogo);
+        };
+    }, []);
 
     return (
         <>
@@ -73,11 +108,11 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                             width: 48,
                             justifyContent: 'center'
                         }}
-                        onClick={() => navigate('/')}
+                        onClick={() => navigate('/about')}
                     >
                         <Box
                             component="img"
-                            src={logoImage}
+                            src={logoUrl || ''}
                             alt="Mary Kay Logo"
                             sx={{
                                 height: 38,
@@ -94,42 +129,56 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                         <Stack direction="row" spacing={1}>
                             {isAdmin ? (
                                 <>
-                                    <Button 
+                                    {/* Submenú Ver */}
+                                    <Button
                                         color="inherit"
-                                        variant={isActive('/admin') ? 'contained' : 'text'}
-                                        sx={isActive('/admin') ? { backgroundColor: '#ffffff', color: '#000000' } : {}}
-                                        onClick={() => navigate('/admin')}
-                                        startIcon={<ReceiptIcon fontSize="small" />}
+                                        endIcon={<ArrowDropDownIcon />}
+                                        aria-controls={Boolean(anchorElView) ? 'menu-ver' : undefined}
+                                        aria-haspopup="true"
+                                        aria-expanded={Boolean(anchorElView) ? 'true' : undefined}
+                                        onMouseEnter={handleOpenView}
+                                        onClick={handleOpenView}
                                     >
-                                        Ver Facturas
+                                        Ver
                                     </Button>
-                                    <Button 
+                                    <Menu
+                                        id="menu-ver"
+                                        anchorEl={anchorElView}
+                                        open={Boolean(anchorElView)}
+                                        onClose={handleCloseView}
+                                        MenuListProps={{
+                                            onMouseLeave: handleCloseView
+                                        }}
+                                    >
+                                        <MenuItem onClick={() => { navigate('/admin/payment/list'); handleCloseView(); setViewMenuOpen(false); }}>Ver Pagos</MenuItem>
+                                        <MenuItem onClick={() => { navigate('/admin/user/list'); handleCloseView(); setViewMenuOpen(false); }}>Ver Usuarios</MenuItem>
+                                        <MenuItem onClick={() => { navigate('/admin'); handleCloseView(); setViewMenuOpen(false); }}>Ver Facturas</MenuItem>
+                                    </Menu>
+                                    {/* Submenú Registrar */}
+                                    <Button
                                         color="inherit"
-                                        variant={isActive('/admin/invoice/create') ? 'contained' : 'text'}
-                                        sx={isActive('/admin/invoice/create') ? { backgroundColor: '#ffffff', color: '#000000' } : {}}
-                                        onClick={() => navigate('/admin/invoice/create')}
-                                        startIcon={<AddCircleIcon fontSize="small" />}
+                                        endIcon={<ArrowDropDownIcon />}
+                                        aria-controls={Boolean(anchorElRegister) ? 'menu-registrar' : undefined}
+                                        aria-haspopup="true"
+                                        aria-expanded={Boolean(anchorElRegister) ? 'true' : undefined}
+                                        onMouseEnter={handleOpenRegister}
+                                        onClick={handleOpenRegister}
                                     >
-                                        Crear Factura
+                                        Registrar
                                     </Button>
-                                    <Button 
-                                        color="inherit"
-                                        variant={isActive('/admin/user/create') ? 'contained' : 'text'}
-                                        sx={isActive('/admin/user/create') ? { backgroundColor: '#ffffff', color: '#000000' } : {}}
-                                        onClick={() => navigate('/admin/user/create')}
-                                        startIcon={<PersonAddIcon fontSize="small" />}
+                                    <Menu
+                                        id="menu-registrar"
+                                        anchorEl={anchorElRegister}
+                                        open={Boolean(anchorElRegister)}
+                                        onClose={handleCloseRegister}
+                                        MenuListProps={{
+                                            onMouseLeave: handleCloseRegister
+                                        }}
                                     >
-                                        Crear Usuario
-                                    </Button>
-                                    <Button 
-                                        color="inherit"
-                                        variant={isActive('/admin/payment/list') ? 'contained' : 'text'}
-                                        sx={isActive('/admin/payment/list') ? { backgroundColor: '#ffffff', color: '#000000' } : {}}
-                                        onClick={() => navigate('/admin/payment/list')}
-                                        startIcon={<ReceiptIcon fontSize="small" />}
-                                    >
-                                        Ver Pagos
-                                    </Button>
+                                        <MenuItem onClick={() => { navigate('/admin/user/create'); handleCloseRegister(); }}>Registrar Usuario</MenuItem>
+                                        <MenuItem onClick={() => { navigate('/admin/invoice/create'); handleCloseRegister(); }}>Registrar Factura</MenuItem>
+                                        <MenuItem onClick={() => { navigate('/admin/payment/register'); handleCloseRegister(); }}>Registrar Pago</MenuItem>
+                                    </Menu>
                                     <Button
                                         color="inherit"
                                         variant={isActive('/admin/reports') ? 'contained' : 'text'}
@@ -178,38 +227,29 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                 <List sx={{ width: 250 }}>
                     {isAdmin ? (
                         <>
-                            <ListItem
-                                button
-                                selected={isActive('/admin')}
-                                onClick={() => { navigate('/admin'); setDrawerOpen(false); }}
-                            >
+                            {/* Submenú Ver (mobile) */}
+                            <ListItem button onClick={handleOpenView}>
                                 <ListItemIcon><ReceiptIcon /></ListItemIcon>
-                                <ListItemText primary="Ver Facturas" />
+                                <ListItemText primary="Ver" />
+                                <ArrowDropDownIcon />
                             </ListItem>
-                            <ListItem
-                                button
-                                selected={isActive('/admin/invoice/create')}
-                                onClick={() => { navigate('/admin/invoice/create'); setDrawerOpen(false); }}
-                            >
+                            <Menu anchorEl={anchorElView} open={Boolean(anchorElView)} onClose={() => { handleCloseView(); setDrawerOpen(false); }}>
+                                <MenuItem onClick={() => { navigate('/admin/payment/list'); handleCloseView(); setDrawerOpen(false); }}>Ver Pagos</MenuItem>
+                                <MenuItem onClick={() => { navigate('/admin/user/list'); handleCloseView(); setDrawerOpen(false); }}>Ver Usuarios</MenuItem>
+                                <MenuItem onClick={() => { navigate('/admin'); handleCloseView(); setDrawerOpen(false); }}>Ver Facturas</MenuItem>
+                            </Menu>
+                            {/* Submenú Registrar (mobile) */}
+                            <ListItem button onClick={handleOpenRegister}>
                                 <ListItemIcon><AddCircleIcon /></ListItemIcon>
-                                <ListItemText primary="Crear Factura" />
+                                <ListItemText primary="Registrar" />
+                                <ArrowDropDownIcon />
                             </ListItem>
-                            <ListItem
-                                button
-                                selected={isActive('/admin/user/create')}
-                                onClick={() => { navigate('/admin/user/create'); setDrawerOpen(false); }}
-                            >
-                                <ListItemIcon><PersonAddIcon /></ListItemIcon>
-                                <ListItemText primary="Crear Usuario" />
-                            </ListItem>
-                            <ListItem
-                                button
-                                selected={isActive('/admin/payment/list')}
-                                onClick={() => { navigate('/admin/payment/list'); setDrawerOpen(false); }}
-                            >
-                                <ListItemIcon><PaymentIcon /></ListItemIcon>
-                                <ListItemText primary="Ver Pagos" />
-                            </ListItem>
+                            <Menu anchorEl={anchorElRegister} open={Boolean(anchorElRegister) && registerMenuOpen} onClose={() => { handleCloseRegister(); setDrawerOpen(false); }}>
+                                <MenuItem onClick={() => { navigate('/admin/user/create'); handleCloseRegister(); setDrawerOpen(false); }}>Registrar Usuario</MenuItem>
+                                <MenuItem onClick={() => { navigate('/admin/invoice/create'); handleCloseRegister(); setDrawerOpen(false); }}>Registrar Factura</MenuItem>
+                                <MenuItem onClick={() => { navigate('/admin/payment/register'); handleCloseRegister(); setDrawerOpen(false); }}>Registrar Pago</MenuItem>
+                            </Menu>
+                            {/* Reportes y otros enlaces siguen igual */}
                             <ListItem
                                 button
                                 selected={isActive('/admin/reports')}

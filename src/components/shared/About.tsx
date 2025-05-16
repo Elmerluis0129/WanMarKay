@@ -15,7 +15,6 @@ import {
     CircularProgress,
     Snackbar,
     Alert,
-    Input,
     FormControl,
     Select,
     MenuItem,
@@ -70,6 +69,8 @@ export const About: React.FC = () => {
     const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
     const [previewCuerpoUrl, setPreviewCuerpoUrl] = useState<string | null>(null);
     const [pendingCuerpoFile, setPendingCuerpoFile] = useState<File | null>(null);
+    const [previewLogoUrl, setPreviewLogoUrl] = useState<string | null>(null);
+    const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
 
     useEffect(() => {
         (async () => {
@@ -96,6 +97,30 @@ export const About: React.FC = () => {
         try {
             setLoading(true);
             let updates = { ...editData };
+            // Si hay una nueva imagen de logo, conviértela a base64 y guárdala
+            if (pendingLogoFile) {
+                const reader = new FileReader();
+                reader.onload = async (ev) => {
+                    updates.logo_url = ev.target?.result as string;
+                    // Si también hay imagen de perfil o cuerpo, procesa aquí igual que antes
+                    // (puedes anidar los FileReader si es necesario)
+                    // Finalmente:
+                    const updated = await aboutMeService.updateAboutMe(editData.id, updates);
+                    setAbout(updated);
+                    setEditData(updated);
+                    setEditMode(false);
+                    setPendingLogoFile(null);
+                    setPreviewLogoUrl(null);
+                    setPendingImageFile(null);
+                    setPreviewUrl(null);
+                    setPendingCuerpoFile(null);
+                    setPreviewCuerpoUrl(null);
+                    setSnackbar({open: true, message: 'Información actualizada', severity: 'success'});
+                    setLoading(false);
+                };
+                reader.readAsDataURL(pendingLogoFile);
+                return;
+            }
             // Si hay una nueva imagen, conviértela a base64 y guárdala
             if (pendingImageFile) {
                 const reader = new FileReader();
@@ -208,6 +233,14 @@ export const About: React.FC = () => {
         if (!editData) return;
         setEditData({ ...editData, [field]: value });
     };
+    // Handler para cambiar el logo grande
+    const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setPendingLogoFile(file);
+            setPreviewLogoUrl(URL.createObjectURL(file));
+        }
+    };
 
     if (loading) {
         return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
@@ -220,6 +253,30 @@ export const About: React.FC = () => {
         <>
             <Navigation />
             <Container maxWidth="lg" sx={{ py: 4 }}>
+                {/* Logo grande y bonito */}
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 4, position: 'relative' }}>
+                    <Box
+                        component="img"
+                        src={previewLogoUrl || (editMode ? editData?.logo_url : about.logo_url) || ''}
+                        alt="Mary Kay Logo Grande"
+                        sx={{
+                            width: { xs: 120, sm: 180, md: 220 },
+                            height: 'auto',
+                            borderRadius: '50%',
+                            boxShadow: '0 4px 32px rgba(227,28,121,0.18)',
+                            border: '6px solid #E31C79',
+                            background: '#fff',
+                            objectFit: 'contain',
+                            display: 'block',
+                        }}
+                    />
+                    {editMode && (
+                        <IconButton component="label" sx={{ position: 'absolute', bottom: 8, right: { xs: 16, sm: 32 }, bgcolor: '#fff', boxShadow: 2 }}>
+                            <PhotoCameraIcon sx={{ color: '#E31C79' }} />
+                            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoChange} />
+                        </IconButton>
+                    )}
+                </Box>
                 {/* Botón Editar centralizado arriba de todo */}
                 {isAdmin && (
                     <Box sx={{ display: 'flex', justifyContent: 'center', mb: 0 }}>
