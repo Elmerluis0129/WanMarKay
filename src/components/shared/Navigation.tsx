@@ -12,6 +12,7 @@ import {
     ListItemIcon,
     ListItemText,
     Box,
+    Tooltip,
 } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -21,13 +22,16 @@ import ReceiptIcon from '@mui/icons-material/Receipt';
 import PaymentIcon from '@mui/icons-material/Payment';
 import MenuIcon from '@mui/icons-material/Menu';
 import AssessmentIcon from '@mui/icons-material/Assessment';
+import DarkModeIcon from '@mui/icons-material/DarkMode';
+import LightModeIcon from '@mui/icons-material/LightMode';
 import { auth } from '../../services/auth';
-import { useTheme } from '@mui/material/styles';
+import { useTheme as useMuiTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import { aboutMeService } from '../../services/aboutMeService';
+import { useTheme } from '../../context/ThemeContext';
 
 interface NavigationProps {
     title?: string;
@@ -37,7 +41,8 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
     const navigate = useNavigate();
     const location = useLocation();
     const isAdmin = auth.isAdmin();
-    const theme = useTheme();
+    const theme = useMuiTheme();
+    const { mode, toggleTheme } = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const [drawerOpen, setDrawerOpen] = useState(false);
     const isActive = (path: string) => location.pathname === path;
@@ -83,7 +88,7 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
 
     return (
         <>
-            <AppBar position="static" sx={{ backgroundColor: '#E31C79', mb: 3 }}>
+            <AppBar position="static" sx={{ mb: 3 }}>
                 <Toolbar sx={{ minHeight: 64 }}>
                     {isMobile && (
                         <IconButton
@@ -99,14 +104,15 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                             background: '#fff',
                             borderRadius: '50%',
                             p: 0.5,
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                            boxShadow: theme.shadows[2],
                             display: 'flex',
                             alignItems: 'center',
                             mr: 2,
                             cursor: 'pointer',
                             height: 48,
                             width: 48,
-                            justifyContent: 'center'
+                            justifyContent: 'center',
+                            border: '3px solid #E31C79',
                         }}
                         onClick={() => navigate('/about')}
                     >
@@ -125,6 +131,23 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                     <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
                         {title}
                     </Typography>
+
+                    {/* Botón de cambio de tema */}
+                    <Tooltip title={mode === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}>
+                        <IconButton 
+                            color="inherit" 
+                            onClick={toggleTheme}
+                            sx={{ 
+                                mr: 2,
+                                '&:hover': {
+                                    backgroundColor: 'rgba(255, 255, 255, 0.1)'
+                                }
+                            }}
+                        >
+                            {mode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}
+                        </IconButton>
+                    </Tooltip>
+
                     {!isMobile && (
                         <Stack direction="row" spacing={1}>
                             {isAdmin ? (
@@ -182,7 +205,15 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                     <Button
                                         color="inherit"
                                         variant={isActive('/admin/reports') ? 'contained' : 'text'}
-                                        sx={isActive('/admin/reports') ? { backgroundColor: '#ffffff', color: '#000000' } : {}}
+                                        sx={isActive('/admin/reports') ? { 
+                                            backgroundColor: theme.palette.background.paper, 
+                                            color: theme.palette.text.primary,
+                                            '&:hover': {
+                                                backgroundColor: theme.palette.mode === 'dark' 
+                                                    ? 'rgba(255, 255, 255, 0.15)' 
+                                                    : 'rgba(0, 0, 0, 0.08)'
+                                            }
+                                        } : {}}
                                         onClick={() => navigate('/admin/reports')}
                                         startIcon={<AssessmentIcon fontSize="small" />}
                                     >
@@ -193,7 +224,15 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                 <Button 
                                     color="inherit"
                                     variant={isActive('/client') ? 'contained' : 'text'}
-                                    sx={isActive('/client') ? { backgroundColor: '#ffffff', color: '#000000' } : {}}
+                                    sx={isActive('/client') ? { 
+                                        backgroundColor: theme.palette.background.paper, 
+                                        color: theme.palette.text.primary,
+                                        '&:hover': {
+                                            backgroundColor: theme.palette.mode === 'dark' 
+                                                ? 'rgba(255, 255, 255, 0.15)' 
+                                                : 'rgba(0, 0, 0, 0.08)'
+                                        }
+                                    } : {}}
                                     onClick={() => navigate('/client')}
                                     startIcon={<ReceiptIcon fontSize="small" />}
                                 >
@@ -203,7 +242,15 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                             <Button 
                                 color="inherit"
                                 variant={isActive('/about') ? 'contained' : 'text'}
-                                sx={isActive('/about') ? { backgroundColor: '#ffffff', color: '#000000' } : {}}
+                                sx={isActive('/about') ? { 
+                                    backgroundColor: theme.palette.background.paper, 
+                                    color: theme.palette.text.primary,
+                                    '&:hover': {
+                                        backgroundColor: theme.palette.mode === 'dark' 
+                                            ? 'rgba(255, 255, 255, 0.15)' 
+                                            : 'rgba(0, 0, 0, 0.08)'
+                                    }
+                                } : {}}
                                 onClick={() => navigate('/about')}
                             >
                                 Sobre Wanda
@@ -212,6 +259,11 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                 color="inherit" 
                                 onClick={handleLogout}
                                 startIcon={<LogoutIcon />}
+                                sx={{
+                                    '&:hover': {
+                                        backgroundColor: 'rgba(255, 255, 255, 0.1)'
+                                    }
+                                }}
                             >
                                 Cerrar Sesión
                             </Button>
@@ -223,6 +275,12 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                 anchor="left"
                 open={drawerOpen}
                 onClose={() => setDrawerOpen(false)}
+                PaperProps={{
+                    sx: {
+                        backgroundColor: theme.palette.background.paper,
+                        color: theme.palette.text.primary
+                    }
+                }}
             >
                 <List sx={{ width: 250 }}>
                     {isAdmin ? (

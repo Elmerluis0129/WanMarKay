@@ -144,7 +144,6 @@ export const CreateUser: React.FC = () => {
                         sx={{
                             padding: 4,
                             width: '100%',
-                            backgroundColor: '#fff',
                             borderRadius: 2,
                         }}
                     >

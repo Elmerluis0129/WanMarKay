@@ -345,7 +345,7 @@ export const About: React.FC = () => {
                         </IconButton>
                     )}
                 </Box>
-                <Paper elevation={3} sx={{ p: { xs: 2, md: 4 }, borderRadius: 2, background: '#fff' }}>
+                <Paper elevation={3} sx={{ p: { xs: 2, md: 4 }, borderRadius: 2, color: (theme) => theme.palette.text.primary }}>
                     <Grid container spacing={4} alignItems="stretch">
                         {/* Sección de Wanda (perfil, nombre, descripción) */}
                         <Grid item xs={12} md={6} sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative' }}>
@@ -401,7 +401,7 @@ export const About: React.FC = () => {
                                             sx={{ mb: 2 }}
                                         />
                                     ) : (
-                                        <Typography variant="body1" paragraph sx={{ textAlign: 'justify', color: '#444' }}>
+                                        <Typography variant="body1" paragraph sx={{ textAlign: 'justify', color: 'inherit' }}>
                                             {isPreviewMode ? (editData?.descripcion || about.descripcion) : about.descripcion}
                                         </Typography>
                                     )}
@@ -413,7 +413,13 @@ export const About: React.FC = () => {
                             <Grid container spacing={0} alignItems="center">
                                 {/* Sobre Mary Kay */}
                                 <Grid item xs={12} md={7}>
-                                    <Box sx={{ background: '#faf7fa', borderRadius: 2, p: 3, height: '100%' }}>
+                                    <Box sx={{
+                                        backgroundColor: (theme) => theme.palette.background.paper,
+                                        borderRadius: 2,
+                                        p: 3,
+                                        height: '100%',
+                                        color: (theme) => theme.palette.text.primary,
+                                    }}>
                                         {editMode && !isPreviewMode ? (
                                             <TextField
                                                 label="Sobre Mary Kay"
@@ -423,13 +429,19 @@ export const About: React.FC = () => {
                                                 multiline
                                                 minRows={7}
                                                 sx={{ mb: 2 }}
+                                                InputProps={{
+                                                    style: { color: 'inherit' }
+                                                }}
+                                                InputLabelProps={{
+                                                    style: { color: 'inherit' }
+                                                }}
                                             />
                                         ) : (
                                             <>
                                                 <Typography variant="h5" component="h2" gutterBottom color="primary" sx={{ fontWeight: 600 }}>
                                                     Sobre Mary Kay
                                                 </Typography>
-                                                <Typography variant="body1" paragraph sx={{ textAlign: 'justify', color: '#444' }}>
+                                                <Typography variant="body1" paragraph sx={{ textAlign: 'justify', color: 'inherit' }}>
                                                     {isPreviewMode ? (editData?.seccion_marykay || about.seccion_marykay) : about.seccion_marykay}
                                                 </Typography>
                                             </>
@@ -438,7 +450,7 @@ export const About: React.FC = () => {
                                 </Grid>
                                 {/* Imagen cuerpo completo lateral derecho */}
                                 <Grid item xs={12} md={5} sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: { xs: 3, md: 0 } }}>
-                                    <Paper elevation={4} sx={{ p: 2, background: '#faf7fa', borderRadius: 4, boxShadow: '0 4px 24px rgba(227,28,121,0.10)' }}>
+                                    <Paper elevation={4} sx={{ p: 2, borderRadius: 4, boxShadow: '0 4px 24px rgba(227,28,121,0.10)' }}>
                                         <Box sx={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
                                             <img
                                                 src={previewCuerpoUrl || (isPreviewMode ? (editData?.imagen_cuerpo_completo_url || about.imagen_cuerpo_completo_url) : (editMode ? editData?.imagen_cuerpo_completo_url : about.imagen_cuerpo_completo_url)) || perfil2Image}
@@ -452,7 +464,6 @@ export const About: React.FC = () => {
                                                     boxShadow: '0 4px 24px rgba(0,0,0,0.10)',
                                                     display: 'block',
                                                     margin: '0 auto',
-                                                    background: '#fff'
                                                 }}
                                             />
                                             {editMode && !isPreviewMode && (

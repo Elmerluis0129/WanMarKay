@@ -354,7 +354,7 @@ export const CreateInvoice: React.FC = () => {
             <Navigation title="Crear Nueva Factura" />
             <Container maxWidth="md">
                 <Box sx={{ mt: 4, mb: 4 }}>
-                    <Paper elevation={3} sx={{ p: 4, backgroundColor: '#fff' }}>
+                    <Paper elevation={3} sx={{ p: 4 }}>
                         <Typography variant="h5" sx={{ color: '#E31C79', mb: 3 }}>
                             Crear Nueva Factura
                         </Typography>
