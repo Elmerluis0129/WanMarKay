@@ -13,7 +13,7 @@ export const Footer: React.FC = () => {
                 onClick={() => navigate('/about')}
                 sx={{ color: '#E31C79', cursor: 'pointer', ml: 1, textDecoration: 'underline', '&:hover': { color: '#C4156A' } }}
             >
-                Sobre mí
+                Sobre Wanda
             </Link>
         </Box>
     );

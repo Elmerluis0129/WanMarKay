@@ -30,7 +30,15 @@ import {
     Cancel as CancelIcon,
     Add as AddIcon,
     Delete as DeleteIcon,
-    PhotoCamera as PhotoCameraIcon
+    PhotoCamera as PhotoCameraIcon,
+    Visibility as VisibilityIcon,
+    Facebook as FacebookIcon,
+    WhatsApp as WhatsAppIcon,
+    LinkedIn as LinkedInIcon,
+    Twitter as TwitterIcon,
+    YouTube as YouTubeIcon,
+    Telegram as TelegramIcon,
+    Pinterest as PinterestIcon,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { aboutMeService, AboutMe } from '../../services/aboutMeService';
@@ -43,25 +51,26 @@ const CONTACT_ICONS: Record<string, React.ReactNode> = {
     web: <PublicIcon sx={{ color: '#E31C79', fontSize: 32 }} />,
     email: <EmailIcon sx={{ color: '#E31C79', fontSize: 32 }} />,
     direccion: <LocationIcon sx={{ color: '#E31C79', fontSize: 32 }} />,
-    facebook: <span role="img" aria-label="Facebook">📘</span>,
-    whatsapp: <span role="img" aria-label="WhatsApp">💬</span>,
-    linkedin: <span role="img" aria-label="LinkedIn">🔗</span>,
-    twitter: <span role="img" aria-label="Twitter">🐦</span>,
+    facebook: <FacebookIcon sx={{ color: '#E31C79', fontSize: 32 }} />,
+    whatsapp: <WhatsAppIcon sx={{ color: '#E31C79', fontSize: 32 }} />,
+    linkedin: <LinkedInIcon sx={{ color: '#E31C79', fontSize: 32 }} />,
+    twitter: <TwitterIcon sx={{ color: '#E31C79', fontSize: 32 }} />,
     tiktok: <span role="img" aria-label="TikTok">🎵</span>,
-    youtube: <span role="img" aria-label="YouTube">▶️</span>,
-    telegram: <span role="img" aria-label="Telegram">✈️</span>,
+    youtube: <YouTubeIcon sx={{ color: '#E31C79', fontSize: 32 }} />,
+    telegram: <TelegramIcon sx={{ color: '#E31C79', fontSize: 32 }} />,
     otra: <span role="img" aria-label="Otra red social">🌐</span>,
     alternativo: <span role="img" aria-label="Número alternativo">📱</span>,
     skype: <span role="img" aria-label="Skype">📞</span>,
     calendly: <span role="img" aria-label="Calendly">📅</span>,
     snapchat: <span role="img" aria-label="Snapchat">👻</span>,
-    pinterest: <span role="img" aria-label="Pinterest">📌</span>,
+    pinterest: <PinterestIcon sx={{ color: '#E31C79', fontSize: 32 }} />,
 };
 
 export const About: React.FC = () => {
     const [about, setAbout] = useState<AboutMe | null>(null);
     const [loading, setLoading] = useState(true);
     const [editMode, setEditMode] = useState(false);
+    const [isPreviewMode, setIsPreviewMode] = useState(false);
     const [editData, setEditData] = useState<AboutMe | null>(null);
     const [snackbar, setSnackbar] = useState<{open: boolean, message: string, severity: 'success'|'error'}>({open: false, message: '', severity: 'success'});
     const isAdmin = auth.isAdmin();
@@ -246,18 +255,77 @@ export const About: React.FC = () => {
         return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}><CircularProgress /></Box>;
     }
     if (!about) {
-        return <Alert severity="error">No se encontró información de "Sobre mí".</Alert>;
+        return <Alert severity="error">No se encontró información de "Sobre Wanda".</Alert>;
     }
 
     return (
         <>
             <Navigation />
             <Container maxWidth="lg" sx={{ py: 4 }}>
+                {/* Botones de Vista Previa y Edición */}
+                {isAdmin && !isPreviewMode && (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mb: 4 }}>
+                        {editMode && (
+                            <Button
+                                variant="contained"
+                                color="primary"
+                                startIcon={<VisibilityIcon />}
+                                onClick={() => setIsPreviewMode(true)}
+                            >
+                                Vista Previa
+                            </Button>
+                        )}
+                        {!editMode && (
+                            <Button
+                                variant="outlined"
+                                color="primary"
+                                startIcon={<EditIcon />}
+                                onClick={handleEdit}
+                            >
+                                Editar
+                            </Button>
+                        )}
+                    </Box>
+                )}
+                {isPreviewMode && (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', mb: 4 }}>
+                        <Button
+                            variant="contained"
+                            color="secondary"
+                            startIcon={<EditIcon />}
+                            onClick={() => setIsPreviewMode(false)}
+                        >
+                            Volver a Edición
+                        </Button>
+                    </Box>
+                )}
+                {editMode && !isPreviewMode && (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', mb: 4 }}>
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            startIcon={<SaveIcon />}
+                            onClick={handleSave}
+                            sx={{ mx: 1 }}
+                        >
+                            Guardar
+                        </Button>
+                        <Button
+                            variant="outlined"
+                            color="secondary"
+                            startIcon={<CancelIcon />}
+                            onClick={handleCancel}
+                            sx={{ mx: 1 }}
+                        >
+                            Cancelar
+                        </Button>
+                    </Box>
+                )}
                 {/* Logo grande y bonito */}
                 <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mb: 4, position: 'relative' }}>
                     <Box
                         component="img"
-                        src={previewLogoUrl || (editMode ? editData?.logo_url : about.logo_url) || ''}
+                        src={previewLogoUrl || (isPreviewMode ? (editData?.logo_url || about.logo_url) : (editMode ? editData?.logo_url : about.logo_url)) || ''}
                         alt="Mary Kay Logo Grande"
                         sx={{
                             width: { xs: 120, sm: 180, md: 220 },
@@ -270,32 +338,13 @@ export const About: React.FC = () => {
                             display: 'block',
                         }}
                     />
-                    {editMode && (
+                    {editMode && !isPreviewMode && (
                         <IconButton component="label" sx={{ position: 'absolute', bottom: 8, right: { xs: 16, sm: 32 }, bgcolor: '#fff', boxShadow: 2 }}>
                             <PhotoCameraIcon sx={{ color: '#E31C79' }} />
                             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoChange} />
                         </IconButton>
                     )}
                 </Box>
-                {/* Botón Editar centralizado arriba de todo */}
-                {isAdmin && (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', mb: 0 }}>
-                        {editMode ? (
-                            <>
-                                <Button startIcon={<SaveIcon />} variant="contained" color="primary" onClick={handleSave} sx={{ mx: 1 }}>
-                                    Guardar
-                                </Button>
-                                <Button startIcon={<CancelIcon />} variant="outlined" color="secondary" onClick={handleCancel} sx={{ mx: 1 }}>
-                                    Cancelar
-                                </Button>
-                            </>
-                        ) : (
-                            <Button startIcon={<EditIcon />} variant="outlined" onClick={handleEdit} sx={{ mx: 1 }}>
-                                Editar
-                            </Button>
-                        )}
-                    </Box>
-                )}
                 <Paper elevation={3} sx={{ p: { xs: 2, md: 4 }, borderRadius: 2, background: '#fff' }}>
                     <Grid container spacing={4} alignItems="stretch">
                         {/* Sección de Wanda (perfil, nombre, descripción) */}
@@ -303,11 +352,11 @@ export const About: React.FC = () => {
                             <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'center', sm: 'flex-start' }, gap: 3, position: 'relative' }}>
                                 <Box sx={{ position: 'relative', display: 'inline-block' }}>
                                     <Avatar
-                                        src={previewUrl || (editMode ? editData?.imagen_url : about.imagen_url)}
+                                        src={previewUrl || (isPreviewMode ? (editData?.imagen_url || about.imagen_url) : (editMode ? editData?.imagen_url : about.imagen_url))}
                                         alt={about.nombre}
                                         sx={{ width: 120, height: 120, border: '4px solid #E31C79', boxShadow: '0 2px 12px rgba(227,28,121,0.10)' }}
                                     />
-                                    {editMode && (
+                                    {editMode && !isPreviewMode && (
                                         <IconButton component="label" sx={{ position: 'absolute', bottom: 0, right: 0, bgcolor: '#fff', boxShadow: 2 }}>
                                             <PhotoCameraIcon sx={{ color: '#E31C79' }} />
                                             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageChange} />
@@ -315,7 +364,7 @@ export const About: React.FC = () => {
                                     )}
                                 </Box>
                                 <Box sx={{ flex: 1 }}>
-                                    {editMode ? (
+                                    {editMode && !isPreviewMode ? (
                                         <TextField
                                             label="Nombre"
                                             value={editData?.nombre || ''}
@@ -325,10 +374,10 @@ export const About: React.FC = () => {
                                         />
                                     ) : (
                                         <Typography variant="h4" component="h1" gutterBottom color="primary" sx={{ fontWeight: 700 }}>
-                                            {about.nombre}
+                                            {isPreviewMode ? (editData?.nombre || about.nombre) : about.nombre}
                                         </Typography>
                                     )}
-                                    {editMode ? (
+                                    {editMode && !isPreviewMode ? (
                                         <TextField
                                             label="Título"
                                             value={editData?.titulo || ''}
@@ -338,10 +387,10 @@ export const About: React.FC = () => {
                                         />
                                     ) : (
                                         <Typography variant="h6" color="text.secondary" gutterBottom>
-                                            {about.titulo}
+                                            {isPreviewMode ? (editData?.titulo || about.titulo) : about.titulo}
                                         </Typography>
                                     )}
-                                    {editMode ? (
+                                    {editMode && !isPreviewMode ? (
                                         <TextField
                                             label="Descripción"
                                             value={editData?.descripcion || ''}
@@ -353,7 +402,7 @@ export const About: React.FC = () => {
                                         />
                                     ) : (
                                         <Typography variant="body1" paragraph sx={{ textAlign: 'justify', color: '#444' }}>
-                                            {about.descripcion}
+                                            {isPreviewMode ? (editData?.descripcion || about.descripcion) : about.descripcion}
                                         </Typography>
                                     )}
                                 </Box>
@@ -365,7 +414,7 @@ export const About: React.FC = () => {
                                 {/* Sobre Mary Kay */}
                                 <Grid item xs={12} md={7}>
                                     <Box sx={{ background: '#faf7fa', borderRadius: 2, p: 3, height: '100%' }}>
-                                        {editMode ? (
+                                        {editMode && !isPreviewMode ? (
                                             <TextField
                                                 label="Sobre Mary Kay"
                                                 value={editData?.seccion_marykay || ''}
@@ -381,7 +430,7 @@ export const About: React.FC = () => {
                                                     Sobre Mary Kay
                                                 </Typography>
                                                 <Typography variant="body1" paragraph sx={{ textAlign: 'justify', color: '#444' }}>
-                                                    {about.seccion_marykay}
+                                                    {isPreviewMode ? (editData?.seccion_marykay || about.seccion_marykay) : about.seccion_marykay}
                                                 </Typography>
                                             </>
                                         )}
@@ -392,7 +441,7 @@ export const About: React.FC = () => {
                                     <Paper elevation={4} sx={{ p: 2, background: '#faf7fa', borderRadius: 4, boxShadow: '0 4px 24px rgba(227,28,121,0.10)' }}>
                                         <Box sx={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
                                             <img
-                                                src={previewCuerpoUrl || (editMode ? editData?.imagen_cuerpo_completo_url : about.imagen_cuerpo_completo_url) || perfil2Image}
+                                                src={previewCuerpoUrl || (isPreviewMode ? (editData?.imagen_cuerpo_completo_url || about.imagen_cuerpo_completo_url) : (editMode ? editData?.imagen_cuerpo_completo_url : about.imagen_cuerpo_completo_url)) || perfil2Image}
                                                 alt="Wanda cuerpo completo"
                                                 style={{
                                                     maxWidth: '100%',
@@ -406,7 +455,7 @@ export const About: React.FC = () => {
                                                     background: '#fff'
                                                 }}
                                             />
-                                            {editMode && (
+                                            {editMode && !isPreviewMode && (
                                                 <IconButton component="label" sx={{ position: 'absolute', bottom: 16, right: 16, bgcolor: '#fff' }}>
                                                     <PhotoCameraIcon sx={{ color: '#E31C79' }} />
                                                     <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleCuerpoImageChange} />
@@ -426,7 +475,7 @@ export const About: React.FC = () => {
                         Información de Contacto
                     </Typography>
                     <Box sx={{ maxWidth: 500, mx: 'auto', mt: 3 }}>
-                        {editMode ? (
+                        {editMode && !isPreviewMode ? (
                             <>
                                 {editData?.contactos.map((c: any, idx: number) => (
                                     <Box key={idx} sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -475,7 +524,7 @@ export const About: React.FC = () => {
                                 </Button>
                             </>
                         ) : (
-                            about.contactos.map((c: any, idx: number) => (
+                            (isPreviewMode ? (editData?.contactos || about.contactos) : about.contactos).map((c: any, idx: number) => (
                                 <motion.div
                                     key={idx}
                                     initial={{ opacity: 0, x: 40 }}

@@ -206,7 +206,7 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                 sx={isActive('/about') ? { backgroundColor: '#ffffff', color: '#000000' } : {}}
                                 onClick={() => navigate('/about')}
                             >
-                                Sobre mí
+                                Sobre Wanda
                             </Button>
                             <Button 
                                 color="inherit" 
@@ -274,7 +274,7 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                         selected={isActive('/about')}
                         onClick={() => { navigate('/about'); setDrawerOpen(false); }}
                     >
-                        <ListItemText primary="Sobre mí" />
+                        <ListItemText primary="Sobre Wanda" />
                     </ListItem>
                     <ListItem button onClick={handleLogout}>
                         <ListItemIcon><LogoutIcon /></ListItemIcon>
