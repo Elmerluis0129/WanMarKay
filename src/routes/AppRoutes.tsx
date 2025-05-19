@@ -20,6 +20,7 @@ import ComingSoon from '../components/shared/ComingSoon';
 import UserProfile from '../components/shared/UserProfile';
 import FAQ from '../components/shared/FAQ';
 import About from '../components/shared/About';
+import { BankAccountsPage } from '../components/admin/BankAccountsPage';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -95,6 +96,14 @@ export const AppRoutes: React.FC = () => {
         element={
           <PrivateRoute>
             <ClientDashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/cuentas-bancarias"
+        element={
+          <PrivateRoute>
+            <BankAccountsPage />
           </PrivateRoute>
         }
       />

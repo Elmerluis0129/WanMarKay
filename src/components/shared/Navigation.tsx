@@ -219,6 +219,22 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                     >
                                         Reportes
                                     </Button>
+                                    <Button 
+                                        color="inherit"
+                                        variant={isActive('/cuentas-bancarias') ? 'contained' : 'text'}
+                                        sx={isActive('/cuentas-bancarias') ? { 
+                                            backgroundColor: theme.palette.background.paper, 
+                                            color: theme.palette.text.primary,
+                                            '&:hover': {
+                                                backgroundColor: theme.palette.mode === 'dark' 
+                                                    ? 'rgba(255, 255, 255, 0.15)' 
+                                                    : 'rgba(0, 0, 0, 0.08)'
+                                            }
+                                        } : {}}
+                                        onClick={() => navigate('/cuentas-bancarias')}
+                                    >
+                                        Cuentas Bancarias
+                                    </Button>
                                 </>
                             ) : (
                                 <Button 
