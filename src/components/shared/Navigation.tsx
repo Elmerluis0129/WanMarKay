@@ -13,6 +13,8 @@ import {
     ListItemText,
     Box,
     Tooltip,
+    Menu,
+    MenuItem
 } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -24,13 +26,11 @@ import MenuIcon from '@mui/icons-material/Menu';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import { auth } from '../../services/auth';
+import { aboutMeService } from '../../services/aboutMeService';
 import { useTheme as useMuiTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import Menu from '@mui/material/Menu';
-import MenuItem from '@mui/material/MenuItem';
-import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-import { aboutMeService } from '../../services/aboutMeService';
 import { useTheme } from '../../context/ThemeContext';
 
 interface NavigationProps {
@@ -44,43 +44,43 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
     const theme = useMuiTheme();
     const { mode, toggleTheme } = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
     const [drawerOpen, setDrawerOpen] = useState(false);
-    const isActive = (path: string) => location.pathname === path;
-    const [anchorElView, setAnchorElView] = useState<null | HTMLElement>(null);
-    const [anchorElRegister, setAnchorElRegister] = useState<null | HTMLElement>(null);
-    const [viewMenuOpen, setViewMenuOpen] = useState(false);
-    const [registerMenuOpen, setRegisterMenuOpen] = useState(false);
     const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
-    const handleOpenView = (event: React.MouseEvent<HTMLElement>) => setAnchorElView(event.currentTarget);
+    const [anchorElView, setAnchorElView] = useState<null | HTMLElement>(null);
+    const [anchorElRegister, setAnchorElRegister] = useState<null | HTMLElement>(null);
+
+    const isActive = (path: string) => location.pathname === path;
+
+    const handleOpenView = (event: React.MouseEvent<HTMLElement>) => {
+        setAnchorElRegister(null);
+        setAnchorElView(event.currentTarget);
+    };
+
+    const handleOpenRegister = (event: React.MouseEvent<HTMLElement>) => {
+        setAnchorElView(null);
+        setAnchorElRegister(event.currentTarget);
+    };
+
     const handleCloseView = () => setAnchorElView(null);
-    const handleOpenRegister = (event: React.MouseEvent<HTMLElement>) => setAnchorElRegister(event.currentTarget);
     const handleCloseRegister = () => setAnchorElRegister(null);
-    const handleViewMenuEnter = () => setViewMenuOpen(true);
-    const handleViewMenuLeave = () => setViewMenuOpen(false);
-    const handleRegisterMenuEnter = () => setRegisterMenuOpen(true);
-    const handleRegisterMenuLeave = () => setRegisterMenuOpen(false);
 
     const handleLogout = () => {
-        // Limpiar credenciales y forzar redirección al login
         auth.logout();
         window.location.replace('/login');
     };
 
     useEffect(() => {
-        // Función para cargar el logo
         const fetchLogo = () => {
             aboutMeService.getAboutMe().then(data => {
                 setLogoUrl(data.logo_url || null);
             });
         };
 
-        fetchLogo(); // Carga inicial
-
-        // Escuchar el evento custom
+        fetchLogo();
         window.addEventListener('logo-updated', fetchLogo);
 
-        // Limpieza
         return () => {
             window.removeEventListener('logo-updated', fetchLogo);
         };
@@ -91,11 +91,7 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
             <AppBar position="static" sx={{ mb: 3 }}>
                 <Toolbar sx={{ minHeight: 64 }}>
                     {isMobile && (
-                        <IconButton
-                            color="inherit"
-                            edge="start"
-                            onClick={() => setDrawerOpen(true)}
-                        >
+                        <IconButton color="inherit" edge="start" onClick={() => setDrawerOpen(true)}>
                             <MenuIcon />
                         </IconButton>
                     )}
@@ -132,17 +128,11 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                         {title}
                     </Typography>
 
-                    {/* Botón de cambio de tema */}
                     <Tooltip title={mode === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}>
                         <IconButton 
                             color="inherit" 
                             onClick={toggleTheme}
-                            sx={{ 
-                                mr: 2,
-                                '&:hover': {
-                                    backgroundColor: 'rgba(255, 255, 255, 0.1)'
-                                }
-                            }}
+                            sx={{ mr: 2, '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.1)' } }}
                         >
                             {mode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}
                         </IconButton>
@@ -152,38 +142,10 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                         <Stack direction="row" spacing={1}>
                             {isAdmin ? (
                                 <>
-                                    {/* Submenú Ver */}
+
                                     <Button
                                         color="inherit"
                                         endIcon={<ArrowDropDownIcon />}
-                                        aria-controls={Boolean(anchorElView) ? 'menu-ver' : undefined}
-                                        aria-haspopup="true"
-                                        aria-expanded={Boolean(anchorElView) ? 'true' : undefined}
-                                        onMouseEnter={handleOpenView}
-                                        onClick={handleOpenView}
-                                    >
-                                        Ver
-                                    </Button>
-                                    <Menu
-                                        id="menu-ver"
-                                        anchorEl={anchorElView}
-                                        open={Boolean(anchorElView)}
-                                        onClose={handleCloseView}
-                                        MenuListProps={{
-                                            onMouseLeave: handleCloseView
-                                        }}
-                                    >
-                                        <MenuItem onClick={() => { navigate('/admin/payment/list'); handleCloseView(); setViewMenuOpen(false); }}>Ver Pagos</MenuItem>
-                                        <MenuItem onClick={() => { navigate('/admin/user/list'); handleCloseView(); setViewMenuOpen(false); }}>Ver Usuarios</MenuItem>
-                                        <MenuItem onClick={() => { navigate('/admin'); handleCloseView(); setViewMenuOpen(false); }}>Ver Facturas</MenuItem>
-                                    </Menu>
-                                    {/* Submenú Registrar */}
-                                    <Button
-                                        color="inherit"
-                                        endIcon={<ArrowDropDownIcon />}
-                                        aria-controls={Boolean(anchorElRegister) ? 'menu-registrar' : undefined}
-                                        aria-haspopup="true"
-                                        aria-expanded={Boolean(anchorElRegister) ? 'true' : undefined}
                                         onMouseEnter={handleOpenRegister}
                                         onClick={handleOpenRegister}
                                     >
@@ -194,23 +156,23 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                         anchorEl={anchorElRegister}
                                         open={Boolean(anchorElRegister)}
                                         onClose={handleCloseRegister}
-                                        MenuListProps={{
-                                            onMouseLeave: handleCloseRegister
-                                        }}
+                                        MenuListProps={{ onMouseLeave: handleCloseRegister }}
                                     >
                                         <MenuItem onClick={() => { navigate('/admin/user/create'); handleCloseRegister(); }}>Registrar Usuario</MenuItem>
                                         <MenuItem onClick={() => { navigate('/admin/invoice/create'); handleCloseRegister(); }}>Registrar Factura</MenuItem>
                                         <MenuItem onClick={() => { navigate('/admin/payment/register'); handleCloseRegister(); }}>Registrar Pago</MenuItem>
                                     </Menu>
+
+                                    
                                     <Button
                                         color="inherit"
                                         variant={isActive('/admin/reports') ? 'contained' : 'text'}
-                                        sx={isActive('/admin/reports') ? { 
-                                            backgroundColor: theme.palette.background.paper, 
+                                        sx={isActive('/admin/reports') ? {
+                                            backgroundColor: theme.palette.background.paper,
                                             color: theme.palette.text.primary,
                                             '&:hover': {
-                                                backgroundColor: theme.palette.mode === 'dark' 
-                                                    ? 'rgba(255, 255, 255, 0.15)' 
+                                                backgroundColor: theme.palette.mode === 'dark'
+                                                    ? 'rgba(255, 255, 255, 0.15)'
                                                     : 'rgba(0, 0, 0, 0.08)'
                                             }
                                         } : {}}
@@ -219,20 +181,35 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                     >
                                         Reportes
                                     </Button>
+
+                                    <Button
+                                        color="inherit"
+                                        endIcon={<ArrowDropDownIcon />}
+                                        onMouseEnter={handleOpenView}
+                                        onClick={handleOpenView}
+                                    >
+                                        Ver
+                                    </Button>
+                                    <Menu
+                                        id="menu-ver"
+                                        anchorEl={anchorElView}
+                                        open={Boolean(anchorElView)}
+                                        onClose={handleCloseView}
+                                        MenuListProps={{ onMouseLeave: handleCloseView }}
+                                    >
+                                        <MenuItem onClick={() => { navigate('/admin/payment/list'); handleCloseView(); }}>Ver Pagos</MenuItem>
+                                        <MenuItem onClick={() => { navigate('/admin/user/list'); handleCloseView(); }}>Ver Usuarios</MenuItem>
+                                        <MenuItem onClick={() => { navigate('/admin'); handleCloseView(); }}>Ver Facturas</MenuItem>
+                                    </Menu>
+
+                                    
+
                                 </>
+                                
                             ) : (
                                 <Button 
                                     color="inherit"
                                     variant={isActive('/client') ? 'contained' : 'text'}
-                                    sx={isActive('/client') ? { 
-                                        backgroundColor: theme.palette.background.paper, 
-                                        color: theme.palette.text.primary,
-                                        '&:hover': {
-                                            backgroundColor: theme.palette.mode === 'dark' 
-                                                ? 'rgba(255, 255, 255, 0.15)' 
-                                                : 'rgba(0, 0, 0, 0.08)'
-                                        }
-                                    } : {}}
                                     onClick={() => navigate('/client')}
                                     startIcon={<ReceiptIcon fontSize="small" />}
                                 >
@@ -242,44 +219,22 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                             <Button
                                 color="inherit"
                                 variant={isActive('/cuentas-bancarias') ? 'contained' : 'text'}
-                                sx={isActive('/cuentas-bancarias') ? { 
-                                    backgroundColor: theme.palette.background.paper, 
-                                    color: theme.palette.text.primary,
-                                    '&:hover': {
-                                        backgroundColor: theme.palette.mode === 'dark' 
-                                            ? 'rgba(255, 255, 255, 0.15)' 
-                                            : 'rgba(0, 0, 0, 0.08)'
-                                    }
-                                } : {}}
                                 onClick={() => navigate('/cuentas-bancarias')}
                             >
                                 Cuentas Bancarias
                             </Button>
-                            <Button 
+                            <Button
                                 color="inherit"
                                 variant={isActive('/about') ? 'contained' : 'text'}
-                                sx={isActive('/about') ? { 
-                                    backgroundColor: theme.palette.background.paper, 
-                                    color: theme.palette.text.primary,
-                                    '&:hover': {
-                                        backgroundColor: theme.palette.mode === 'dark' 
-                                            ? 'rgba(255, 255, 255, 0.15)' 
-                                            : 'rgba(0, 0, 0, 0.08)'
-                                    }
-                                } : {}}
                                 onClick={() => navigate('/about')}
                             >
                                 Sobre Wanda
                             </Button>
-                            <Button 
-                                color="inherit" 
+                            <Button
+                                color="inherit"
                                 onClick={handleLogout}
                                 startIcon={<LogoutIcon />}
-                                sx={{
-                                    '&:hover': {
-                                        backgroundColor: 'rgba(255, 255, 255, 0.1)'
-                                    }
-                                }}
+                                sx={{ '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.1)' } }}
                             >
                                 Cerrar Sesión
                             </Button>
@@ -301,29 +256,36 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                 <List sx={{ width: 250 }}>
                     {isAdmin ? (
                         <>
-                            {/* Submenú Ver (mobile) */}
                             <ListItem button onClick={handleOpenView}>
                                 <ListItemIcon><ReceiptIcon /></ListItemIcon>
                                 <ListItemText primary="Ver" />
                                 <ArrowDropDownIcon />
                             </ListItem>
-                            <Menu anchorEl={anchorElView} open={Boolean(anchorElView)} onClose={() => { handleCloseView(); setDrawerOpen(false); }}>
+                            <Menu
+                                anchorEl={anchorElView}
+                                open={Boolean(anchorElView)}
+                                onClose={() => { handleCloseView(); setDrawerOpen(false); }}
+                            >
                                 <MenuItem onClick={() => { navigate('/admin/payment/list'); handleCloseView(); setDrawerOpen(false); }}>Ver Pagos</MenuItem>
                                 <MenuItem onClick={() => { navigate('/admin/user/list'); handleCloseView(); setDrawerOpen(false); }}>Ver Usuarios</MenuItem>
                                 <MenuItem onClick={() => { navigate('/admin'); handleCloseView(); setDrawerOpen(false); }}>Ver Facturas</MenuItem>
                             </Menu>
-                            {/* Submenú Registrar (mobile) */}
+
                             <ListItem button onClick={handleOpenRegister}>
                                 <ListItemIcon><AddCircleIcon /></ListItemIcon>
                                 <ListItemText primary="Registrar" />
                                 <ArrowDropDownIcon />
                             </ListItem>
-                            <Menu anchorEl={anchorElRegister} open={Boolean(anchorElRegister) && registerMenuOpen} onClose={() => { handleCloseRegister(); setDrawerOpen(false); }}>
+                            <Menu
+                                anchorEl={anchorElRegister}
+                                open={Boolean(anchorElRegister)}
+                                onClose={() => { handleCloseRegister(); setDrawerOpen(false); }}
+                            >
                                 <MenuItem onClick={() => { navigate('/admin/user/create'); handleCloseRegister(); setDrawerOpen(false); }}>Registrar Usuario</MenuItem>
                                 <MenuItem onClick={() => { navigate('/admin/invoice/create'); handleCloseRegister(); setDrawerOpen(false); }}>Registrar Factura</MenuItem>
                                 <MenuItem onClick={() => { navigate('/admin/payment/register'); handleCloseRegister(); setDrawerOpen(false); }}>Registrar Pago</MenuItem>
                             </Menu>
-                            {/* Reportes y otros enlaces siguen igual */}
+
                             <ListItem
                                 button
                                 selected={isActive('/admin/reports')}
@@ -343,19 +305,11 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                             <ListItemText primary="Mis Facturas" />
                         </ListItem>
                     )}
-                    <ListItem
-                        button
-                        selected={isActive('/about')}
-                        onClick={() => { navigate('/about'); setDrawerOpen(false); }}
-                    >
-                        <ListItemText primary="Sobre Wanda" />
-                    </ListItem>
-                    <ListItem
-                        button
-                        selected={isActive('/cuentas-bancarias')}
-                        onClick={() => { navigate('/cuentas-bancarias'); setDrawerOpen(false); }}
-                    >
+                    <ListItem button onClick={() => { navigate('/cuentas-bancarias'); setDrawerOpen(false); }}>
                         <ListItemText primary="Cuentas Bancarias" />
+                    </ListItem>
+                    <ListItem button onClick={() => { navigate('/about'); setDrawerOpen(false); }}>
+                        <ListItemText primary="Sobre Wanda" />
                     </ListItem>
                     <ListItem button onClick={handleLogout}>
                         <ListItemIcon><LogoutIcon /></ListItemIcon>
@@ -365,4 +319,4 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
             </Drawer>
         </>
     );
-}; 
+};
