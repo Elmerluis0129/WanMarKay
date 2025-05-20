@@ -3,9 +3,9 @@ import { ResponsiveContainer, PieChart, Pie, Cell, Legend, Tooltip } from 'recha
 import { Invoice } from '../../types/invoice';
 
 const STATUS_COLORS: Record<string, string> = {
-  delayed: '#FFC107', // Retrasadas - amarillo
-  on_time: '#4CAF50',  // A tiempo - verde
-  paid: '#E31C79',     // Pagadas - rosado
+  'Retrasadas': '#F44336', // rojo
+  'A tiempo': '#4CAF50',   // verde
+  'Pagadas': '#E31C79',    // rosado
 };
 
 interface SummaryChartProps {
@@ -13,13 +13,28 @@ interface SummaryChartProps {
 }
 
 export const SummaryChart: React.FC<SummaryChartProps> = ({ invoices }) => {
+  // Mapear estados técnicos a nombres en español
+  const traducirEstado = (status: string): string => {
+    switch (status) {
+      case 'delayed':
+        return 'Retrasadas';
+      case 'on_time':
+        return 'A tiempo';
+      case 'paid':
+        return 'Pagadas';
+      default:
+        return 'Otro';
+    }
+  };
+
   // Contar facturas por estado
   const statusCount = invoices.reduce((acc, inv) => {
-    acc[inv.status] = (acc[inv.status] || 0) + 1;
+    const estadoTraducido = traducirEstado(inv.status);
+    acc[estadoTraducido] = (acc[estadoTraducido] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
-  const data = Object.entries(statusCount).map(([status, value]) => ({ name: status, value }));
+  const data = Object.entries(statusCount).map(([name, value]) => ({ name, value }));
 
   return (
     <ResponsiveContainer width="100%" height={200}>
@@ -41,4 +56,4 @@ export const SummaryChart: React.FC<SummaryChartProps> = ({ invoices }) => {
       </PieChart>
     </ResponsiveContainer>
   );
-}; 
+};

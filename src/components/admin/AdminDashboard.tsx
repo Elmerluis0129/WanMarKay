@@ -29,7 +29,7 @@ export const AdminDashboard: React.FC = () => {
     if (error) {
         return (
             <>
-                <Navigation title="Panel de Administrador" />
+                <Navigation title="Gestión de facturas" />
                 <Container>
                     <Alert severity="error" sx={{ mt: 4 }}>
                         Error al cargar facturas: {error.message}
@@ -42,7 +42,7 @@ export const AdminDashboard: React.FC = () => {
     if (!invoices.length) {
         return (
             <>
-                <Navigation title="Panel de Administrador" />
+                <Navigation title="Gestión de facturas" />
                 <Container>
                     <Alert severity="info" sx={{ mt: 4 }}>
                         No hay facturas disponibles
@@ -54,7 +54,7 @@ export const AdminDashboard: React.FC = () => {
 
     return (
         <>
-            <Navigation title="Panel de Administrador" />
+            <Navigation title="Gestión de facturas" />
             <Container>
                 <Box sx={{ mt: 4 }}>
                     <InvoiceList 

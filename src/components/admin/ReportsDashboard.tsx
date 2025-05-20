@@ -302,7 +302,7 @@ export const ReportsDashboard: React.FC = () => {
                 <XAxis dataKey="month" />
                 <YAxis />
                 <Tooltip formatter={(value: number) => value.toLocaleString('es-DO', { style:'currency', currency:'DOP' })} />
-                <Bar dataKey="ventas" name="Ventas" fill="#E31C79" />
+                <Bar dataKey="ventas" name="Ventas" fill="#4CAF50" />
               </BarChart>
             </ResponsiveContainer>
           </Box>
@@ -341,7 +341,7 @@ export const ReportsDashboard: React.FC = () => {
                 <Legend />
                 <Bar dataKey="A tiempo" stackId="a" name="A tiempo" fill="#4CAF50" />
                 <Bar dataKey="Pagadas" stackId="a" name="Pagadas" fill="#E31C79" />
-                <Bar dataKey="Retrasadas" stackId="a" name="Retrasadas" fill="#FFC107" />
+                <Bar dataKey="Retrasadas" stackId="a" name="Retrasadas" fill="#F44336" />
               </BarChart>
             </ResponsiveContainer>
           </Box>
