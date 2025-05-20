@@ -181,13 +181,14 @@ export const BankAccountsPage: React.FC = () => {
     formData.append('voucher', voucherFile);
     try {
       const res = await fetch('https://wanmarkay-backend.vercel.app/api/upload-voucher', {
-
         method: 'POST',
         body: formData,
       });
       const data = await res.json();
+
       if (data.success) {
         setVoucherMsg('¡Voucher subido correctamente!');
+        // Limpia los campos
         setVoucherFactura('');
         setVoucherUsuario('');
         setVoucherFile(null);
@@ -195,6 +196,7 @@ export const BankAccountsPage: React.FC = () => {
       } else {
         setVoucherMsg('Error: ' + (data.error || 'No se pudo subir el voucher'));
       }
+
     } catch (err) {
       setVoucherMsg('Error de red o servidor');
     }
