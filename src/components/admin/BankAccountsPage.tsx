@@ -180,7 +180,8 @@ export const BankAccountsPage: React.FC = () => {
     formData.append('nombreUsuario', voucherUsuario);
     formData.append('voucher', voucherFile);
     try {
-      const res = await fetch('/api/upload-voucher', {
+      const res = await fetch('https://wanmarkay-backend.vercel.app/api/upload-voucher', {
+
         method: 'POST',
         body: formData,
       });
