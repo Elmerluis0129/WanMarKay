@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Container,
   Box,
@@ -16,14 +16,19 @@ import {
   DialogActions,
   InputLabel,
   FormControl,
-  SelectChangeEvent
+  SelectChangeEvent,
+  Autocomplete
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import { Navigation } from '../shared/Navigation';
 import { useTheme } from '@mui/material/styles';
+import { invoiceService } from '../../services/invoiceService';
+import { Invoice } from '../../types/invoice';
+import { auth } from '../../services/auth';
 
 // Lista de bancos y asociaciones dominicanas (puedes agregar más si lo deseas)
 const BANKS = [
@@ -95,8 +100,40 @@ export const BankAccountsPage: React.FC = () => {
   const [editData, setEditData] = useState<any>({});
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [voucherFactura, setVoucherFactura] = useState('');
+  const [voucherUsuario, setVoucherUsuario] = useState('');
+  const [voucherFile, setVoucherFile] = useState<File | null>(null);
+  const [voucherMsg, setVoucherMsg] = useState('');
+  const [voucherLoading, setVoucherLoading] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<any>(null);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+
+  // Cargar facturas pendientes al montar el componente
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await invoiceService.getAllInvoices();
+        // Filtrar facturas pendientes y por usuario si no es admin
+        const pending = data.filter(inv => {
+          const isPending = inv.status !== 'paid' && inv.status !== 'cancelled';
+          if (auth.isAdmin()) {
+            return isPending;
+          } else {
+            const currentUser = auth.getCurrentUser();
+            return isPending && inv.clientId === currentUser?.id;
+          }
+        });
+        setInvoices(pending);
+      } catch (err: any) {
+        console.error('Error cargando facturas:', err);
+        setVoucherMsg('Error cargando facturas: ' + (err.message || JSON.stringify(err)));
+      }
+    })();
+  }, []);
 
   const handleEdit = (idx: number) => {
     setEditIndex(idx);
@@ -124,6 +161,58 @@ export const BankAccountsPage: React.FC = () => {
   const handleCancel = () => {
     setEditDialogOpen(false);
     setEditIndex(null);
+  };
+
+  const handleVoucherSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVoucherMsg('');
+    if (!voucherFile) {
+      setVoucherMsg('Debes subir una imagen de voucher');
+      return;
+    }
+    if (!selectedInvoice) {
+      setVoucherMsg('Debes seleccionar una factura');
+      return;
+    }
+    setVoucherLoading(true);
+    const formData = new FormData();
+    formData.append('numeroFactura', selectedInvoice.invoiceNumber);
+    formData.append('nombreUsuario', voucherUsuario);
+    formData.append('voucher', voucherFile);
+    try {
+      const res = await fetch('/api/upload-voucher', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        setVoucherMsg('¡Voucher subido correctamente!');
+        setVoucherFactura('');
+        setVoucherUsuario('');
+        setVoucherFile(null);
+        setSelectedInvoice(null);
+      } else {
+        setVoucherMsg('Error: ' + (data.error || 'No se pudo subir el voucher'));
+      }
+    } catch (err) {
+      setVoucherMsg('Error de red o servidor');
+    }
+    setVoucherLoading(false);
+  };
+
+  // Nuevo: abrir modal al hacer clic en tarjeta
+  const handleOpenAccountModal = (acc: any) => {
+    setSelectedAccount(acc);
+    setVoucherUsuario(acc.name || '');
+    setModalOpen(true);
+  };
+  const handleCloseAccountModal = () => {
+    setModalOpen(false);
+    setSelectedAccount(null);
+    setVoucherMsg('');
+    setVoucherFactura('');
+    setVoucherFile(null);
+    setSelectedInvoice(null);
   };
 
   // Colores dinámicos según modo
@@ -181,6 +270,7 @@ export const BankAccountsPage: React.FC = () => {
                     }}
                     onMouseEnter={() => setHoveredIndex(idx)}
                     onMouseLeave={() => setHoveredIndex(null)}
+                    onClick={() => handleOpenAccountModal(acc)}
                   >
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                       <AccountBalanceIcon sx={{ fontSize: 48, color: '#E31C79', mr: 2, filter: 'drop-shadow(0 2px 8px #e31c7940)' }} />
@@ -225,6 +315,143 @@ export const BankAccountsPage: React.FC = () => {
               ))}
             </Grid>
           </Paper>
+
+          {/* Modal para ver datos y subir voucher */}
+          <Dialog open={modalOpen} onClose={handleCloseAccountModal} maxWidth="sm" fullWidth>
+            <DialogTitle>
+              <Typography variant="h6" sx={{ color: '#E31C79', fontWeight: 700 }}>
+                {selectedAccount?.bank} - {selectedAccount?.accountNumber}
+              </Typography>
+            </DialogTitle>
+            <DialogContent>
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="subtitle2" sx={{ color: '#E31C79', mb: 1 }}>Subir Comprobante de Pago</Typography>
+                <form onSubmit={handleVoucherSubmit}>
+                  <Autocomplete
+                    value={selectedInvoice}
+                    onChange={(_, newValue) => {
+                      setSelectedInvoice(newValue);
+                      if (newValue) {
+                        setVoucherUsuario(newValue.clientName);
+                      }
+                    }}
+                    options={invoices}
+                    getOptionLabel={inv => `#${inv.invoiceNumber} - ${inv.clientName}`}
+                    isOptionEqualToValue={(opt, val) => opt.id === val.id}
+                    renderInput={params => (
+                      <TextField
+                        {...params}
+                        label="Seleccionar Factura"
+                        fullWidth
+                        required
+                        sx={{ mb: 2 }}
+                      />
+                    )}
+                  />
+                  <TextField
+                    label="Nombre de usuario"
+                    value={voucherUsuario}
+                    onChange={e => setVoucherUsuario(e.target.value)}
+                    fullWidth
+                    required
+                    sx={{ mb: 2 }}
+                  />
+                  <Button
+                    variant="outlined"
+                    component="label"
+                    startIcon={<CloudUploadIcon />}
+                    sx={{ mb: 2 }}
+                    fullWidth
+                  >
+                    {voucherFile ? voucherFile.name : 'Seleccionar imagen de voucher'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      hidden
+                      required
+                      onChange={e => setVoucherFile(e.target.files?.[0] || null)}
+                    />
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    color="primary"
+                    fullWidth
+                    disabled={voucherLoading}
+                    sx={{ fontWeight: 700 }}
+                  >
+                    {voucherLoading ? 'Subiendo...' : 'Subir voucher'}
+                  </Button>
+                  {voucherMsg && (
+                    <Typography sx={{ mt: 2, color: voucherMsg.startsWith('¡') ? 'green' : 'red', fontWeight: 500 }}>
+                      {voucherMsg}
+                    </Typography>
+                  )}
+                </form>
+              </Box>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={handleCloseAccountModal} color="secondary">Cerrar</Button>
+            </DialogActions>
+          </Dialog>
+
+          {/* Formulario de subida de voucher solo para admin (debajo de las tarjetas) */}
+          {isAdmin() && (
+            <Paper elevation={2} sx={{ mt: 4, p: 3, maxWidth: 500, mx: 'auto', borderRadius: 3 }}>
+              <Typography variant="h6" sx={{ color: '#E31C79', mb: 2, fontWeight: 700 }}>
+                Subir Voucher de Pago
+              </Typography>
+              <form onSubmit={handleVoucherSubmit}>
+                <TextField
+                  label="Número de factura"
+                  value={voucherFactura}
+                  onChange={e => setVoucherFactura(e.target.value)}
+                  fullWidth
+                  required
+                  sx={{ mb: 2 }}
+                />
+                <TextField
+                  label="Nombre de usuario"
+                  value={voucherUsuario}
+                  onChange={e => setVoucherUsuario(e.target.value)}
+                  fullWidth
+                  required
+                  sx={{ mb: 2 }}
+                />
+                <Button
+                  variant="outlined"
+                  component="label"
+                  startIcon={<CloudUploadIcon />}
+                  sx={{ mb: 2 }}
+                  fullWidth
+                >
+                  {voucherFile ? voucherFile.name : 'Seleccionar imagen de voucher'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    required
+                    onChange={e => setVoucherFile(e.target.files?.[0] || null)}
+                  />
+                </Button>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  color="primary"
+                  fullWidth
+                  disabled={voucherLoading}
+                  sx={{ fontWeight: 700 }}
+                >
+                  {voucherLoading ? 'Subiendo...' : 'Subir voucher'}
+                </Button>
+                {voucherMsg && (
+                  <Typography sx={{ mt: 2, color: voucherMsg.startsWith('¡') ? 'green' : 'red', fontWeight: 500 }}>
+                    {voucherMsg}
+                  </Typography>
+                )}
+              </form>
+            </Paper>
+          )}
         </Box>
       </Container>
 

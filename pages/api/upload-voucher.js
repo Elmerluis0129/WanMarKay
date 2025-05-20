@@ -51,6 +51,7 @@ export default async function handler(req, res) {
       });
       return res.status(200).json({ success: true, filename });
     } catch (e) {
+      console.error('Error al subir a GitHub:', e);
       return res.status(500).json({ error: 'Error al subir a GitHub', details: e.message });
     }
   });

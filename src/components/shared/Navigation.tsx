@@ -219,22 +219,6 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                     >
                                         Reportes
                                     </Button>
-                                    <Button 
-                                        color="inherit"
-                                        variant={isActive('/cuentas-bancarias') ? 'contained' : 'text'}
-                                        sx={isActive('/cuentas-bancarias') ? { 
-                                            backgroundColor: theme.palette.background.paper, 
-                                            color: theme.palette.text.primary,
-                                            '&:hover': {
-                                                backgroundColor: theme.palette.mode === 'dark' 
-                                                    ? 'rgba(255, 255, 255, 0.15)' 
-                                                    : 'rgba(0, 0, 0, 0.08)'
-                                            }
-                                        } : {}}
-                                        onClick={() => navigate('/cuentas-bancarias')}
-                                    >
-                                        Cuentas Bancarias
-                                    </Button>
                                 </>
                             ) : (
                                 <Button 
@@ -255,6 +239,22 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                     Mis Facturas
                                 </Button>
                             )}
+                            <Button
+                                color="inherit"
+                                variant={isActive('/cuentas-bancarias') ? 'contained' : 'text'}
+                                sx={isActive('/cuentas-bancarias') ? { 
+                                    backgroundColor: theme.palette.background.paper, 
+                                    color: theme.palette.text.primary,
+                                    '&:hover': {
+                                        backgroundColor: theme.palette.mode === 'dark' 
+                                            ? 'rgba(255, 255, 255, 0.15)' 
+                                            : 'rgba(0, 0, 0, 0.08)'
+                                    }
+                                } : {}}
+                                onClick={() => navigate('/cuentas-bancarias')}
+                            >
+                                Cuentas Bancarias
+                            </Button>
                             <Button 
                                 color="inherit"
                                 variant={isActive('/about') ? 'contained' : 'text'}
@@ -349,6 +349,13 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                         onClick={() => { navigate('/about'); setDrawerOpen(false); }}
                     >
                         <ListItemText primary="Sobre Wanda" />
+                    </ListItem>
+                    <ListItem
+                        button
+                        selected={isActive('/cuentas-bancarias')}
+                        onClick={() => { navigate('/cuentas-bancarias'); setDrawerOpen(false); }}
+                    >
+                        <ListItemText primary="Cuentas Bancarias" />
                     </ListItem>
                     <ListItem button onClick={handleLogout}>
                         <ListItemIcon><LogoutIcon /></ListItemIcon>
