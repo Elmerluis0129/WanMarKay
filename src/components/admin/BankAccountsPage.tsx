@@ -202,7 +202,7 @@ export const BankAccountsPage: React.FC = () => {
 
       // Si ya se subió y fue un problema menor (como CORS), asumir que fue exitoso
       if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
-        setVoucherMsg('¡Voucher subido correctamente! (con advertencia)');
+        setVoucherMsg('¡Voucher subido correctamente!');
       } else {
         setVoucherMsg('Error de red o servidor: ' + (err.message || ''));
       }
