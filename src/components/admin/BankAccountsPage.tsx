@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Container,
+  Alert,
   Box,
   Typography,
   Paper,
@@ -168,6 +169,7 @@ export const BankAccountsPage: React.FC = () => {
     setVoucherMsg('');
     if (!voucherFile) {
       setVoucherMsg('Debes subir una imagen de voucher');
+      // Mostrar feedback visual destacado
       return;
     }
     if (!selectedInvoice) {
@@ -178,7 +180,19 @@ export const BankAccountsPage: React.FC = () => {
     const formData = new FormData();
     formData.append('numeroFactura', selectedInvoice.invoiceNumber);
     formData.append('nombreUsuario', voucherUsuario);
-    formData.append('voucher', voucherFile);
+    formData.append('banco', selectedAccount?.bank || '');
+    // Construir nombre de archivo: <nombre_original>_NombreBanco.png
+    let fileExt = voucherFile.name.split('.').pop() || 'png';
+    let baseName = voucherFile.name.replace(/\.[^/.]+$/, "");
+    let cleanBank = (selectedAccount?.bank || '').replace(/[^a-zA-Z0-9]/g, '');
+    let newFileName = `${baseName}_${cleanBank || 'Banco'}.${fileExt}`;
+    // Crear un nuevo File con el nombre modificado
+    const fileWithBank = new File([voucherFile], newFileName, { type: voucherFile.type });
+    formData.append('voucher', fileWithBank);
+    // Depuración: mostrar los valores de formData
+    formData.forEach((value, key) => {
+      console.log('FormData:', key, value);
+    });
     try {
       const res = await fetch('https://wanmarkay-backend.vercel.app/api/upload-voucher', {
         method: 'POST',
@@ -383,6 +397,11 @@ export const BankAccountsPage: React.FC = () => {
                       onChange={e => setVoucherFile(e.target.files?.[0] || null)}
                     />
                   </Button>
+                  {!voucherFile && (
+                    <Alert severity="warning" sx={{ mb: 2 }}>
+                      Es obligatorio seleccionar y subir un voucher.
+                    </Alert>
+                  )}
                   <Button
                     type="submit"
                     variant="contained"
