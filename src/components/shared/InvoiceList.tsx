@@ -261,9 +261,16 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
             <Typography variant="h5" sx={{ color: '#E31C79', mb: 1 }}>
                 {title}
             </Typography>
-            <Typography variant="h6" sx={{ mb: 3 }}>
-                Total de facturas: {displayCount}
-            </Typography>
+            <Grid item xs={12} md={4}>
+              <Paper elevation={2} sx={{ p: 2, textAlign: 'center' }}>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Total de Facturas
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: '#E31C79' }}>
+                  {searchQuery ? filteredInvoices.length : (typeof totalInvoices === 'number' ? totalInvoices : initialInvoices.length)}
+                </Typography>
+              </Paper>
+            </Grid>
             <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
                 <Grid container spacing={2} alignItems="center">
                     {/* Campo de búsqueda */}

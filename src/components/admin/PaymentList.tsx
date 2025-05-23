@@ -59,7 +59,6 @@ export const PaymentList: React.FC = () => {
   // Inicializar el filtro con el número de factura si viene en el estado
   const initialFilter = location.state?.search || '';
   const [filterText, setFilterText] = useState<string>(initialFilter);
-  const [displayCount, setDisplayCount] = useState(0);
 
   // Búsqueda global: si hay texto, cargamos todos los pagos para filtrar
   const { data: allPayments, isLoading: loadingAll, refetch: refetchAll } = useQuery<Payment[], Error>({
@@ -75,26 +74,6 @@ export const PaymentList: React.FC = () => {
     (p.invoiceNumber ?? '').toLowerCase().includes(filterText.toLowerCase()) ||
     (p.createdByName ?? '').toLowerCase().includes(filterText.toLowerCase())
   );
-
-  // Animación del conteo: total global o resultados filtrados
-  useEffect(() => {
-    const total = filterText
-      ? filteredPayments.length
-      : totalCount;
-    let current = 0;
-    const duration = 1000;
-    const step = 50;
-    const increment = Math.ceil(total / (duration / step));
-    const timer = setInterval(() => {
-      current += increment;
-      if (current >= total) {
-        current = total;
-        clearInterval(timer);
-      }
-      setDisplayCount(current);
-    }, step);
-    return () => clearInterval(timer);
-  }, [filterText, filteredPayments.length, totalCount]);
 
   useEffect(() => {
     // Si cambia el location.state.search, actualiza el filtro
@@ -134,10 +113,16 @@ export const PaymentList: React.FC = () => {
           <Typography variant="h5" sx={{ color: '#E31C79', mb: 1 }}>
             Pagos
           </Typography>
-          <Typography variant="h6" sx={{ mb: 3 }}>
-            Total de pagos: {displayCount}
-          </Typography>
-          
+          <Grid item xs={12} md={4}>
+            <Paper elevation={2} sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="subtitle2" color="text.secondary">
+                Total de Pagos
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 700, color: '#E31C79' }}>
+                {filterText ? filteredPayments.length : totalCount}
+              </Typography>
+            </Paper>
+          </Grid>
           <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
             <Grid container spacing={2} alignItems="center">
               <Grid item xs={12}>
