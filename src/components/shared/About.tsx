@@ -43,7 +43,7 @@ import {
 import { motion } from 'framer-motion';
 import { aboutMeService, AboutMe } from '../../services/aboutMeService';
 import { auth } from '../../services/auth';
-import perfil2Image from '../../assest/perfil2.jpg';
+import perfil2Image from '../../assets/perfil2.jpg';
 
 const CONTACT_ICONS: Record<string, React.ReactNode> = {
     tel: <PhoneIcon sx={{ color: '#E31C79', fontSize: 32 }} />,
