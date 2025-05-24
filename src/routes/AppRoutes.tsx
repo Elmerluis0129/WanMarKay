@@ -21,6 +21,7 @@ import UserProfile from '../components/shared/UserProfile';
 import FAQ from '../components/shared/FAQ';
 import About from '../components/shared/About';
 import { BankAccountsPage } from '../components/admin/BankAccountsPage';
+import ChangePassword from '../components/auth/ChangePassword';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -106,6 +107,10 @@ export const AppRoutes: React.FC = () => {
             <BankAccountsPage />
           </PrivateRoute>
         }
+      />
+      <Route
+        path="/change-password"
+        element={<ChangePassword />}
       />
       <Route
         path="/"

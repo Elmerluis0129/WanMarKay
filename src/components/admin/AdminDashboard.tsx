@@ -8,19 +8,15 @@ import { Navigation } from '../shared/Navigation';
 import { Loader } from '../shared/Loader';
 
 export const AdminDashboard: React.FC = () => {
-    const [page, setPage] = useState(1);
     const [searchQuery, setSearchQuery] = useState<string>('');
-    const pageSize = 10;
 
-    const { data: result, isLoading, error, refetch } = useQuery<{ data: Invoice[]; count: number }, Error>({
-        queryKey: ['invoices', page],
-        queryFn: () => invoiceService.getInvoices(page, pageSize),
+    const { data: invoices = [], isLoading, error, refetch } = useQuery<Invoice[], Error>({
+        queryKey: ['allInvoices'],
+        queryFn: () => invoiceService.getAllInvoices(),
         staleTime: 300000, // 5 minutos cacheados
     });
-
-    const invoices = result?.data || [];
-    const totalCount = result?.count || 0;
-    const totalPages = Math.ceil(totalCount / pageSize);
+    
+    const totalCount = invoices.length;
 
     if (isLoading) {
         return <Loader />;
@@ -64,16 +60,6 @@ export const AdminDashboard: React.FC = () => {
                         onInvoicesChange={refetch}
                         onSearchChange={(query) => setSearchQuery(query)}
                     />
-                    {!searchQuery && (
-                        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                            <Pagination
-                                count={totalPages}
-                                page={page}
-                                onChange={(_, value) => setPage(value)}
-                                color="primary"
-                            />
-                        </Box>
-                    )}
                 </Box>
             </Container>
         </>

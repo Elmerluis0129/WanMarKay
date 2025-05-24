@@ -11,7 +11,6 @@ import {
   TableCell,
   TableBody,
   TableContainer,
-  Pagination,
   IconButton,
   InputAdornment,
   Grid,
@@ -42,33 +41,43 @@ const highlightText = (text: string, highlight: string): React.ReactNode => {
 
 export const PaymentList: React.FC = () => {
   const location = useLocation();
-  const [page, setPage] = useState(1);
-  const pageSize = 10;
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  // Usamos React Query para obtener pagos paginados
-  const { data: result, isLoading, error, refetch } = useQuery<{ data: Payment[]; count: number }, Error>({
-    queryKey: ['payments', page],
-    queryFn: () => paymentService.getPayments(page, pageSize),
+  
+  // Usamos React Query para obtener todos los pagos
+  const { data: payments = [], isLoading, error, refetch } = useQuery<Payment[], Error>({
+    queryKey: ['allPayments'],
+    queryFn: () => paymentService.getAllPayments(),
     staleTime: 300000,
   });
-  const payments = result?.data || [];
-  const totalCount = result?.count || 0;
-  const totalPages = Math.ceil(totalCount / pageSize);
-  // Inicializar el filtro con el número de factura si viene en el estado
+  
+  const totalCount = payments.length;
+  // Estados para búsqueda con debounce
   const initialFilter = location.state?.search || '';
   const [filterText, setFilterText] = useState<string>(initialFilter);
+  const [searchTerm, setSearchTerm] = useState<string>(initialFilter);
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout>();
 
-  // Búsqueda global: si hay texto, cargamos todos los pagos para filtrar
-  const { data: allPayments, isLoading: loadingAll, refetch: refetchAll } = useQuery<Payment[], Error>({
-    queryKey: ['paymentsAll'],
-    queryFn: () => paymentService.getAllPayments(),
-    enabled: filterText.length > 0,
-    staleTime: 300000,
-  });
-  // Lista a filtrar depende de si hay búsqueda global
-  const paymentsToFilter = filterText ? (allPayments || []) : payments;
+  // Efecto para manejar la búsqueda con debounce
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      setFilterText(searchTerm);
+    }, 500); // 500ms de retraso
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm]);
+
+  // Lista a filtrar
+  const paymentsToFilter = payments;
 
   const filteredPayments = paymentsToFilter.filter(p =>
     (p.invoiceNumber ?? '').toLowerCase().includes(filterText.toLowerCase()) ||
@@ -79,7 +88,6 @@ export const PaymentList: React.FC = () => {
     // Si cambia el location.state.search, actualiza el filtro
     if (location.state?.search) {
       setFilterText(location.state.search);
-      setPage(1);
     }
   }, [location.state?.search]);
 
@@ -100,141 +108,136 @@ export const PaymentList: React.FC = () => {
   };
 
   // Mostrar spinner si carga inicial o carga global de búsqueda
-  if (filterText ? loadingAll : isLoading) {
+  if (isLoading) {
     return <Loader />;
   }
   if (error) return <div>Error al cargar pagos: {error.message}</div>;
 
   return (
-    <>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <Navigation title="Lista de Pagos" />
-      <Container>
-        <Box sx={{ mt: 4 }}>
-          <Typography variant="h5" sx={{ color: '#E31C79', mb: 1 }}>
-            Pagos
-          </Typography>
-          <Grid item xs={12} md={4}>
-            <Paper elevation={2} sx={{ p: 2, textAlign: 'center' }}>
-              <Typography variant="subtitle2" color="text.secondary">
-                Total de Pagos
-              </Typography>
-              <Typography variant="h5" sx={{ fontWeight: 700, color: '#E31C79' }}>
-                {filterText ? filteredPayments.length : totalCount}
-              </Typography>
-            </Paper>
-          </Grid>
-          <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Buscar factura/registrado por"
-                  value={filterText}
-                  onChange={e => { setFilterText(e.target.value); setPage(1); }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon />
-                      </InputAdornment>
-                    )
-                  }}
-                />
-              </Grid>
+      <Box sx={{ flex: 1, overflow: 'hidden' }}>
+        <Container>
+          <Box sx={{ mt: 4, display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <Typography variant="h5" sx={{ color: '#E31C79', mb: 1 }}>
+              Pagos
+            </Typography>
+            <Grid item xs={12} md={4}>
+              <Paper elevation={2} sx={{ p: 2, textAlign: 'center' }}>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Total de Pagos
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: '#E31C79' }}>
+                  {filterText ? filteredPayments.length : totalCount}
+                </Typography>
+              </Paper>
             </Grid>
-          </Paper>
-
-          <TableContainer component={Paper} elevation={1}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>#</TableCell>
-                  <TableCell>Factura</TableCell>
-                  <TableCell>Fecha</TableCell>
-                  <TableCell align="right">Monto</TableCell>
-                  <TableCell align="right">Mora Pagada</TableCell>
-                  <TableCell align="right">Capital Pagado</TableCell>
-                  <TableCell>Cuota N°</TableCell>
-                  <TableCell>Método</TableCell>
-                  <TableCell>Registrado por</TableCell>
-                  <TableCell>Adjunto</TableCell>
-                  <TableCell align="center">Acciones</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredPayments.map((p: Payment, index: number) => (
-                  <TableRow
-                    key={p.id}
-                    sx={{
-                      backgroundColor: index % 2 === 0 ? '#ffffff' : '#f5f5f5',
-                      '&:hover': {
-                        backgroundColor: 'rgba(227, 28, 121, 0.04)',
-                      }
+            <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
+              <Grid container spacing={2} alignItems="center">
+                <Grid item xs={12}>
+                  <TextField
+                    label="Buscar por referencia o cliente"
+                    variant="outlined"
+                    size="small"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    sx={{ mb: 2, width: 300 }}
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <SearchIcon />
+                        </InputAdornment>
+                      )
                     }}
-                  >
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{index + 1}</TableCell>
-                    <TableCell>{highlightText(p.invoiceNumber ?? '-', filterText)}</TableCell>
-                    <TableCell>{new Date(p.date).toLocaleDateString()}</TableCell>
-                    <TableCell align="right">
-                      RD$ {p.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell align="right">
-                      RD$ {(p.lateFeePaid ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell align="right">
-                      RD$ {(p.amount - (p.lateFeePaid ?? 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell>{p.installmentNumber}</TableCell>
-                    <TableCell>{p.method}</TableCell>
-                    <TableCell>{highlightText(p.createdByName ?? '-', filterText)}</TableCell>
-                    <TableCell>
-                      {p.attachment ? (
-                        <a 
-                          href={p.attachment} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          style={{ color: '#E31C79', textDecoration: 'none' }}
-                        >
-                          Ver
-                        </a>
-                      ) : (
-                        '-'
-                      )}
-                    </TableCell>
-                    <TableCell align="center">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleViewDetails(p)}
-                        title="Ver detalles"
-                        sx={{ 
-                          color: '#E31C79',
-                          '&:hover': {
-                            backgroundColor: 'rgba(227, 28, 121, 0.08)',
-                          }
-                        }}
-                      >
-                        <VisibilityIcon fontSize="small" />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                  />
+                </Grid>
+              </Grid>
+            </Paper>
 
-          {/* Paginación solo si no hay búsqueda global */}
-          {!filterText && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-              <Pagination
-                count={totalPages}
-                page={page}
-                onChange={(_, value) => setPage(value)}
-                color="primary"
-              />
+            <TableContainer component={Paper} elevation={1} sx={{ flex: 1, overflow: 'auto', maxHeight: 'calc(100vh - 300px)' }}>
+              <Table stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>#</TableCell>
+                    <TableCell>Factura</TableCell>
+                    <TableCell>Fecha</TableCell>
+                    <TableCell align="right">Monto</TableCell>
+                    <TableCell align="right">Mora Pagada</TableCell>
+                    <TableCell align="right">Capital Pagado</TableCell>
+                    <TableCell>Cuota N°</TableCell>
+                    <TableCell>Método</TableCell>
+                    <TableCell>Registrado por</TableCell>
+                    <TableCell>Adjunto</TableCell>
+                    <TableCell align="center">Acciones</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredPayments.map((p: Payment, index: number) => (
+                    <TableRow
+                      key={p.id}
+                      sx={{
+                        backgroundColor: index % 2 === 0 ? '#ffffff' : '#f5f5f5',
+                        '&:hover': {
+                          backgroundColor: 'rgba(227, 28, 121, 0.04)',
+                        }
+                      }}
+                    >
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{index + 1}</TableCell>
+                      <TableCell>{highlightText(p.invoiceNumber ?? '-', filterText)}</TableCell>
+                      <TableCell>{new Date(p.date).toLocaleDateString()}</TableCell>
+                      <TableCell align="right">
+                        {p.amount.toLocaleString('es-DO', { style: 'currency', currency: 'DOP' })}
+                      </TableCell>
+                      <TableCell align="right">
+                        {(p.lateFeePaid ?? 0).toLocaleString('es-DO', { style: 'currency', currency: 'DOP' })}
+                      </TableCell>
+                      <TableCell align="right">
+                        {(p.amount - (p.lateFeePaid ?? 0)).toLocaleString('es-DO', { style: 'currency', currency: 'DOP' })}
+                      </TableCell>
+                      <TableCell>{p.installmentNumber}</TableCell>
+                      <TableCell>{p.method}</TableCell>
+                      <TableCell>{highlightText(p.createdByName ?? '-', filterText)}</TableCell>
+                      <TableCell>
+                        {p.attachment ? (
+                          <a 
+                            href={p.attachment} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            style={{ color: '#E31C79', textDecoration: 'none' }}
+                          >
+                            Ver
+                          </a>
+                        ) : (
+                          '-'
+                        )}
+                      </TableCell>
+                      <TableCell align="center">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleViewDetails(p)}
+                          title="Ver detalles"
+                          sx={{ 
+                            color: '#E31C79',
+                            '&:hover': {
+                              backgroundColor: 'rgba(227, 28, 121, 0.08)',
+                            }
+                          }}
+                        >
+                          <VisibilityIcon fontSize="small" />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            <Box sx={{ mt: 2, textAlign: 'center', color: 'text.secondary', py: 2 }}>
+              Mostrando {filteredPayments.length} de {totalCount} pagos
             </Box>
-          )}
-        </Box>
-      </Container>
+          </Box>
+        </Container>
+      </Box>
 
       {selectedInvoice && (
         <PaymentDetailsModal
@@ -246,14 +249,10 @@ export const PaymentList: React.FC = () => {
           }}
           invoice={selectedInvoice}
           onPaymentRegistered={() => {
-            if (filterText) {
-              refetchAll();
-            } else {
-              refetch();
-            }
+            refetch();
           }}
         />
       )}
-    </>
+    </Box>
   );
-}; 
+};

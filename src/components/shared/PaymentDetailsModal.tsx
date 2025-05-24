@@ -394,8 +394,8 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
             body: invoice.items.map(item => [
                 String(item.quantity),
                 item.description,
-                `RD$ ${item.unitPrice.toFixed(2)}`,
-                `RD$ ${item.total.toFixed(2)}`
+                `${item.unitPrice.toLocaleString('es-DO', { style: 'currency', currency: 'DOP' })}`,
+                `${item.total.toLocaleString('es-DO', { style: 'currency', currency: 'DOP' })}`
             ]),
             theme: 'grid',
             headStyles: { fillColor: pink, textColor: 255, fontStyle: 'bold', halign: 'center' },
@@ -414,21 +414,6 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
         doc.setTextColor(gray[0], gray[1], gray[2]);
         doc.text('NOTA: ENVIAR COMPROBANTE DE PAGO', 10, y); y += 8;
 
-        // Subtotales y totales alineados como en la factura física
-        doc.setFontSize(11);
-        doc.setTextColor(0,0,0);
-        const xLabel = 130;
-        const xValue = 190;
-        doc.text('SUB-TOTAL RD$', xLabel, y);
-        doc.text(`${invoice.subtotal.toFixed(2)}`, xValue, y, { align: 'right' }); y += 6;
-        // doc.text('ITBIS', xLabel, y); doc.text('0.00', xValue, y, { align: 'right' }); y += 6;
-        doc.text('TOTAL RD$', xLabel, y);
-        doc.text(`${invoice.total.toFixed(2)}`, xValue, y, { align: 'right' }); y += 8;
-        doc.text(`Descuento: ${invoice.discountPercentage?.toFixed(2) ?? 0}%`, xLabel, y); y += 6;
-        doc.text(`Pendiente: RD$ ${invoice.remainingAmount.toFixed(2)}`, xLabel, y); y += 8;
-        if ((invoice.lateFeeAmount ?? 0) > 0) {
-            doc.text(`Pendiente (con mora): RD$ ${(invoice.remainingAmount + (invoice.lateFeeAmount ?? 0)).toFixed(2)}`, xLabel, y); y += 8;
-        }
 
         // Números de cuenta para transferencias y depósitos
         doc.setFontSize(12);
@@ -621,9 +606,9 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                                         {invoice.phone && <Typography><strong>Teléfono:</strong> {formatPhone(invoice.phone)}</Typography>}
                                     </>
                                 )}
-                                <Typography><strong>Total:</strong> RD$ {invoice.total.toFixed(2)}</Typography>
+                                <Typography><strong>Total:</strong> {invoice.total.toLocaleString('es-DO', { style: 'currency', currency: 'DOP' })}</Typography>
                                 <Typography><strong>Descuento:</strong> {invoice.discountPercentage?.toFixed(2) ?? 0}%</Typography>
-                                <Typography><strong>Pendiente:</strong> RD$ {invoice.remainingAmount.toFixed(2)}</Typography>
+                                <Typography><strong>Pendiente:</strong> {invoice.remainingAmount.toLocaleString('es-DO', { style: 'currency', currency: 'DOP' })}</Typography>
                                 {(invoice.lateFeeAmount ?? 0) > 0 && (
                                     <Typography sx={{ mt: 0.5 }}><strong>Pendiente (con mora):</strong> RD$ {(invoice.remainingAmount + (invoice.lateFeeAmount ?? 0)).toFixed(2)}</Typography>
                                 )}
@@ -698,8 +683,8 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                                     <TableRow key={idx} hover>
                                         <TableCell>{item.description}</TableCell>
                                         <TableCell align="right">{item.quantity}</TableCell>
-                                        <TableCell align="right">RD$ {item.unitPrice.toFixed(2)}</TableCell>
-                                        <TableCell align="right">RD$ {item.total.toFixed(2)}</TableCell>
+                                        <TableCell align="right">{item.unitPrice.toLocaleString('es-DO', { style: 'currency', currency: 'DOP' })}</TableCell>
+                                        <TableCell align="right">{item.total.toLocaleString('es-DO', { style: 'currency', currency: 'DOP' })}</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -728,7 +713,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
                                             <TableRow key={p.id} hover>
                                                 <TableCell>{idx+1}</TableCell>
                                                 <TableCell>{new Date(p.date).toLocaleDateString()}</TableCell>
-                                                <TableCell align="right">RD$ {p.amount.toFixed(2)}</TableCell>
+                                                <TableCell align="right">{p.amount.toLocaleString('es-DO', { style: 'currency', currency: 'DOP' })}</TableCell>
                                                 <TableCell>{p.installmentNumber}</TableCell>
                                                 <TableCell>{p.method}</TableCell>
                                                 <TableCell>{p.createdByName ?? '-'}</TableCell>

@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
     Box,
+    Checkbox,
     CircularProgress,
+    FormControlLabel,
+    ListItemText,
     Paper,
     Table,
     TableBody,
@@ -67,10 +70,32 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
     const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
     // Estado para desencadenar recálculo cada minuto
     const [now, setNow] = useState<Date>(new Date());
-    // Búsqueda por número de factura o cliente
+    // Estados para búsqueda con debounce
     const [searchQuery, setSearchQuery] = useState<string>('');
+    const [searchTerm, setSearchTerm] = useState<string>('');
+    const searchTimeoutRef = React.useRef<NodeJS.Timeout>();
+
+    // Efecto para manejar la búsqueda con debounce
+    useEffect(() => {
+        if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
+        }
+
+        searchTimeoutRef.current = setTimeout(() => {
+            setSearchQuery(searchTerm);
+            onSearchChange?.(searchTerm);
+        }, 500); // 500ms de retraso
+
+        return () => {
+            if (searchTimeoutRef.current) {
+                clearTimeout(searchTimeoutRef.current);
+            }
+        };
+    }, [searchTerm, onSearchChange]);
+
+    // Búsqueda por número de factura o cliente
     const { data: allInvoices, isLoading: loadingAll } = useQuery<Invoice[], Error>({
-        queryKey: ['invoicesAll'],
+        queryKey: ['invoicesAll', searchQuery],
         queryFn: () => invoiceService.getAllInvoices(),
         enabled: searchQuery.length > 0,
         staleTime: 300000,
@@ -119,11 +144,13 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
     const isAdmin = auth.isAdmin();
 
     // Filtros
-    const [statusFilter, setStatusFilter] = useState<string>('');
+    const [statusFilter, setStatusFilter] = useState<string[]>([]);
     const [typeFilter, setTypeFilter] = useState<string>('');
     const [userFilter, setUserFilter] = useState<string>('');
     const [dateFrom, setDateFrom] = useState<string>('');
     const [dateTo, setDateTo] = useState<string>('');
+    
+    // Eliminamos los estados de paginación ya que no los necesitaremos
 
     // Opciones de usuarios (clientes)
     const clientOptions = Array.from(new Set(invoices.map(inv => inv.clientName)));
@@ -135,28 +162,32 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
         }
         return inv;
     });
+    
     const invoicesToFilter = searchQuery
         ? allInvoicesWithStatus
         : invoicesWithStatus;
+        
     // Facturas filtradas según criterios y búsqueda
     const filteredInvoices = invoicesToFilter.filter(inv => {
-        return (statusFilter === '' || inv.status === statusFilter)
-            && (typeFilter === '' || inv.paymentType === typeFilter)
-            && (userFilter === '' || inv.clientName === userFilter)
-            && (dateFrom === '' || new Date(inv.date) >= new Date(dateFrom))
-            && (dateTo === '' || new Date(inv.date) <= new Date(dateTo))
-            && (searchQuery === ''
-                || inv.invoiceNumber.includes(searchQuery)
-                || inv.clientName.toLowerCase().includes(searchQuery.toLowerCase())
-            );
+        const matchesStatus = statusFilter.length === 0 || statusFilter.includes(inv.status);
+        const matchesType = typeFilter === '' || inv.paymentType === typeFilter;
+        const matchesUser = userFilter === '' || inv.clientName === userFilter;
+        const matchesDateFrom = dateFrom === '' || new Date(inv.date) >= new Date(dateFrom);
+        const matchesDateTo = dateTo === '' || new Date(inv.date) <= new Date(dateTo);
+        const matchesSearch = searchQuery === '' ||
+            inv.invoiceNumber.includes(searchQuery) ||
+            inv.clientName.toLowerCase().includes(searchQuery.toLowerCase());
+            
+        return matchesStatus && matchesType && matchesUser && matchesDateFrom && matchesDateTo && matchesSearch;
     });
+    
+    // Usamos todas las facturas filtradas sin paginación
+    const displayedInvoices = filteredInvoices;
 
     // Animar conteo basado en facturas filtradas
     useEffect(() => {
-        // Total general o resultados filtrados según búsqueda
-        const total = searchQuery
-            ? filteredInvoices.length
-            : (totalInvoices !== undefined ? totalInvoices : initialInvoices.length);
+        // Mostrar siempre el conteo de facturas filtradas
+        const total = filteredInvoices.length;
         let current = 0;
         const duration = 1000;
         const step = 50;
@@ -170,10 +201,14 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
             setDisplayCount(current);
         }, step);
         return () => clearInterval(timer);
-    }, [searchQuery, filteredInvoices.length, totalInvoices, initialInvoices.length]);
+    }, [filteredInvoices.length]); // Solo dependemos de filteredInvoices.length
 
     const clearFilters = () => {
-        setStatusFilter(''); setTypeFilter(''); setUserFilter(''); setDateFrom(''); setDateTo('');
+        setStatusFilter([]);
+        setTypeFilter('');
+        setUserFilter('');
+        setDateFrom('');
+        setDateTo('');
     };
 
     const handleOpenModal = (invoice: Invoice) => {
@@ -267,43 +302,71 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
                   Total de Facturas
                 </Typography>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: '#E31C79' }}>
-                  {searchQuery ? filteredInvoices.length : (typeof totalInvoices === 'number' ? totalInvoices : initialInvoices.length)}
+                  {filteredInvoices.length}
                 </Typography>
               </Paper>
             </Grid>
             <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
                 <Grid container spacing={2} alignItems="center">
-                    {/* Campo de búsqueda */}
                     <Grid item xs={12} sm={6} md={3}>
                         <TextField
                             fullWidth
                             size="small"
                             label="Buscar factura/cliente"
-                            value={searchQuery}
-                            onChange={e => { setSearchQuery(e.target.value); onSearchChange?.(e.target.value); }}
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
                             InputProps={{
-                                startAdornment: (
-                                    <InputAdornment position="start">
+                                endAdornment: (
+                                    <InputAdornment position="end">
                                         <SearchIcon />
                                     </InputAdornment>
                                 )
                             }}
                         />
                     </Grid>
-                    <Grid item xs={12} sm={6} md={2}>
+                    <Grid item xs={12} sm={6} md={3}>
                         <FormControl fullWidth size="small" variant="outlined">
                             <InputLabel id="filter-status-label">Estado</InputLabel>
                             <Select
                                 labelId="filter-status-label"
                                 label="Estado"
+                                multiple
                                 value={statusFilter}
-                                onChange={(e: SelectChangeEvent) => setStatusFilter(e.target.value)}
+                                onChange={(e: SelectChangeEvent<string[]>) => {
+                                    const value = e.target.value as string[];
+                                    // Asegurarse de que siempre sea un array
+                                    setStatusFilter(Array.isArray(value) ? value : [value]);
+                                }}
+                                renderValue={(selected) => {
+                                    if (selected.length === 0) return 'Todos los estados';
+                                    if (selected.length === 4) return 'Todos los estados';
+                                    return selected.map(s => {
+                                        switch(s) {
+                                            case 'on_time': return 'A tiempo';
+                                            case 'paid': return 'Pagada';
+                                            case 'delayed': return 'Retrasada';
+                                            case 'cancelled': return 'Cancelada';
+                                            default: return '';
+                                        }
+                                    }).filter(Boolean).join(', ');
+                                }}
                             >
-                                <MenuItem value="">Todos</MenuItem>
-                                <MenuItem value="on_time">A tiempo</MenuItem>
-                                <MenuItem value="paid">Pagada</MenuItem>
-                                <MenuItem value="delayed">Retrasada</MenuItem>
-                                <MenuItem value="cancelled">Cancelada</MenuItem>
+                                <MenuItem value="on_time">
+                                    <Checkbox checked={statusFilter.includes('on_time')} />
+                                    <ListItemText primary="A tiempo" />
+                                </MenuItem>
+                                <MenuItem value="paid">
+                                    <Checkbox checked={statusFilter.includes('paid')} />
+                                    <ListItemText primary="Pagada" />
+                                </MenuItem>
+                                <MenuItem value="delayed">
+                                    <Checkbox checked={statusFilter.includes('delayed')} />
+                                    <ListItemText primary="Retrasada" />
+                                </MenuItem>
+                                <MenuItem value="cancelled">
+                                    <Checkbox checked={statusFilter.includes('cancelled')} />
+                                    <ListItemText primary="Cancelada" />
+                                </MenuItem>
                             </Select>
                         </FormControl>
                     </Grid>
@@ -349,8 +412,8 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
                     </Grid>
                 </Grid>
             </Paper>
-            <TableContainer component={Paper}>
-                <Table>
+            <TableContainer component={Paper} sx={{ maxHeight: '70vh', overflow: 'auto' }}>
+                <Table stickyHeader>
                     <TableHead>
                         <TableRow>
                             <TableCell>#</TableCell>
@@ -365,7 +428,7 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {filteredInvoices.map((invoice, index) => (
+                        {displayedInvoices.map((invoice, index) => (
                             <TableRow 
                                 key={invoice.id}
                                 sx={{
@@ -416,10 +479,10 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
                                     )}
                                 </TableCell>
                                 <TableCell align="right">
-                                    RD$ {invoice.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {invoice.total.toLocaleString('es-DO', { style: 'currency', currency: 'DOP' })}
                                 </TableCell>
                                 <TableCell align="right">
-                                    RD$ {invoice.remainingAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {invoice.remainingAmount.toLocaleString('es-DO', { style: 'currency', currency: 'DOP' })}
                                 </TableCell>
                                 <TableCell align="center">
                                     <IconButton
@@ -432,6 +495,15 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
                                 </TableCell>
                             </TableRow>
                         ))}
+                        {filteredInvoices.length === 0 && (
+                            <TableRow>
+                                <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
+                                    <Typography variant="body1" color="textSecondary">
+                                        No se encontraron facturas que coincidan con los filtros
+                                    </Typography>
+                                </TableCell>
+                            </TableRow>
+                        )}
                     </TableBody>
                 </Table>
             </TableContainer>

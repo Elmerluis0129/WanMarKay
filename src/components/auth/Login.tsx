@@ -23,7 +23,26 @@ export const Login: React.FC = () => {
         try {
             const user = await auth.login({ username, password });
             if (user) {
-                navigate(user.role === 'admin' ? '/admin' : '/client');
+                // Validar si debe cambiar contraseña
+                const mustChange = user.mustChangePassword;
+                let expired = false;
+                let reason = '';
+                if (user.passwordChangedAt) {
+                    const last = new Date(user.passwordChangedAt);
+                    const now = new Date();
+                    const diffDays = (now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24);
+                    expired = diffDays > 30;
+                }
+                if (mustChange) {
+                    reason = 'first';
+                } else if (expired) {
+                    reason = 'expired';
+                }
+                if (mustChange || expired) {
+                    navigate('/change-password', { state: { reason } });
+                } else {
+                    navigate(user.role === 'admin' ? '/admin' : '/client');
+                }
             } else {
                 setError('Credenciales inválidas');
             }

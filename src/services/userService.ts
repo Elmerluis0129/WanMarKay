@@ -7,24 +7,28 @@ export const userService = {
   getUsers: async (): Promise<User[]> => {
     const { data, error } = await supabase
       .from('users')
-      .select('id, username, full_name, password, role, cedula, phone, address');
+      .select('id, username, full_name, password, email, role, cedula, phone, address, mustChangePassword, passwordHistory, passwordChangedAt');
     if (error) throw error;
     return (data || []).map((d: any) => ({
       id: d.id,
       username: d.username,
       fullName: d.full_name,
       password: d.password,
+      email: d.email || '',
       role: d.role,
       cedula: d.cedula,
       phone: d.phone,
-      address: d.address
+      address: d.address,
+      mustChangePassword: d.mustChangePassword,
+      passwordHistory: d.passwordHistory || [],
+      passwordChangedAt: d.passwordChangedAt
     }));
   },
   addUser: async (user: User): Promise<User> => {
     const { data, error } = await supabase
       .from('users')
-      .insert([{ username: user.username, full_name: user.fullName, password: user.password, role: user.role, cedula: user.cedula, phone: user.phone, address: user.address }])
-      .select('id, username, full_name, password, role, cedula, phone, address')
+      .insert([{ username: user.username, full_name: user.fullName, password: user.password, email: user.email, role: user.role, cedula: user.cedula, phone: user.phone, address: user.address, mustChangePassword: user.mustChangePassword, passwordHistory: user.passwordHistory || [], passwordChangedAt: user.passwordChangedAt }])
+      .select('id, username, full_name, password, email, role, cedula, phone, address, mustChangePassword, passwordHistory, passwordChangedAt')
       .single();
     if (error || !data) throw error;
     return {
@@ -32,18 +36,21 @@ export const userService = {
       username: data.username,
       fullName: data.full_name,
       password: data.password,
+      email: data.email || '',
       role: data.role,
       cedula: data.cedula,
       phone: data.phone,
-      address: data.address
+      address: data.address,
+      mustChangePassword: data.mustChangePassword,
+      passwordHistory: data.passwordHistory || []
     };
   },
   updateUser: async (user: User): Promise<User> => {
     const { data, error } = await supabase
       .from('users')
-      .update({ username: user.username, full_name: user.fullName, password: user.password, role: user.role, cedula: user.cedula, phone: user.phone, address: user.address })
+      .update({ username: user.username, full_name: user.fullName, password: user.password, email: user.email, role: user.role, cedula: user.cedula, phone: user.phone, address: user.address, mustChangePassword: user.mustChangePassword, passwordHistory: user.passwordHistory || [], passwordChangedAt: user.passwordChangedAt })
       .eq('id', user.id)
-      .select('id, username, full_name, password, role, cedula, phone, address')
+      .select('id, username, full_name, password, email, role, cedula, phone, address, mustChangePassword, passwordHistory, passwordChangedAt')
       .single();
     if (error || !data) throw error;
     const updatedUser: User = {
@@ -51,10 +58,13 @@ export const userService = {
       username: data.username,
       fullName: data.full_name,
       password: data.password,
+      email: data.email || '',
       role: data.role,
       cedula: data.cedula,
       phone: data.phone,
-      address: data.address
+      address: data.address,
+      mustChangePassword: data.mustChangePassword,
+      passwordHistory: data.passwordHistory || []
     };
     // Registrar acción de edición en el log
     try {
@@ -85,7 +95,7 @@ export const userService = {
     // Construir filtro de búsqueda en username, full_name, role o address
     let query = supabase
       .from('users')
-      .select('id, username, full_name, password, role, cedula, phone, address', { count: 'exact' })
+      .select('id, username, full_name, password, email, role, cedula, phone, address', { count: 'exact' })
       .range(from, to);
     if (search) {
       const term = `%${search}%`;
@@ -100,10 +110,14 @@ export const userService = {
       username: d.username,
       fullName: d.full_name,
       password: d.password,
+      email: d.email || '',
       role: d.role,
       cedula: d.cedula,
       phone: d.phone,
-      address: d.address
+      address: d.address,
+      mustChangePassword: d.mustChangePassword,
+      passwordHistory: d.passwordHistory || [],
+      passwordChangedAt: d.passwordChangedAt
     }));
     return { data: users, count: count || 0 };
   },

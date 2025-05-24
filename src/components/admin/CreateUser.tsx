@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import InputMask from 'react-input-mask';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
 import {
     Box,
     Container,
@@ -26,6 +29,7 @@ export const CreateUser: React.FC = () => {
         lastNames: '',
         username: '',
         password: '',
+        email: '',
         role: 'client' as UserRole,
         cedula: '',
         phone: '',
@@ -37,6 +41,7 @@ export const CreateUser: React.FC = () => {
     const [snackbarOpen, setSnackbarOpen] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
     const [snackbarSeverity, setSnackbarSeverity] = useState<'success'|'error'>('success');
+    const [emailError, setEmailError] = useState<string>('');
 
     useEffect(() => {
         const clean = (s: string) => s.replace(/\D/g, '');
@@ -66,6 +71,11 @@ export const CreateUser: React.FC = () => {
         });
         if (name === 'username') setUsernameTouched(true);
         if (name === 'password') setPasswordTouched(true);
+        if (name === 'email') {
+            // Validar formato de email
+            const emailRegex = /^[\w-.]+@[\w-]+\.[a-zA-Z]{2,}$/;
+            setEmailError(!value ? 'El correo es obligatorio' : (!emailRegex.test(value) ? 'Correo inválido' : ''));
+        }
     };
 
     const handleRoleChange = (e: SelectChangeEvent) => {
@@ -80,6 +90,19 @@ export const CreateUser: React.FC = () => {
         const allUsers = await userService.getUsers();
         const normalize = (str: string) => str.replace(/\s+/g, '').toLowerCase();
         const fullName = `${formData.firstNames} ${formData.lastNames}`.trim();
+        if (!formData.email) {
+            setSnackbarMessage('El correo electrónico es obligatorio');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+            return;
+        }
+        const emailRegex = /^[\w-.]+@[\w-]+\.[a-zA-Z]{2,}$/;
+        if (!emailRegex.test(formData.email)) {
+            setSnackbarMessage('Correo electrónico inválido');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+            return;
+        }
         if (allUsers.some(u => normalize(u.fullName) === normalize(fullName))) {
             setSnackbarMessage('Ya existe un usuario con ese nombre');
             setSnackbarSeverity('error');
@@ -92,17 +115,28 @@ export const CreateUser: React.FC = () => {
             setSnackbarOpen(true);
             return;
         }
+        if (allUsers.some(u => u.email === formData.email)) {
+            setSnackbarMessage('El correo electrónico ya está en uso');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+            return;
+        }
         const cleanCedula = formData.cedula.replace(/-/g, '');
         const cleanPhone = formData.phone.replace(/\D/g, '');
+        const rdDate = dayjs().tz('America/Santo_Domingo').format('YYYY-MM-DD');
         const newUser: User = {
             id: uuidv4(),
             fullName,
             username: formData.username,
             password: formData.password,
+            email: formData.email,
             role: formData.role,
             cedula: cleanCedula,
             phone: cleanPhone,
             address: formData.address,
+            mustChangePassword: true,
+            passwordHistory: [],
+            passwordChangedAt: rdDate
         };
 
         try {
@@ -115,6 +149,7 @@ export const CreateUser: React.FC = () => {
                 lastNames: '',
                 username: '',
                 password: '',
+                email: '',
                 role: 'client',
                 cedula: '',
                 phone: '',
@@ -159,6 +194,18 @@ export const CreateUser: React.FC = () => {
                                 label="Nombre(s)"
                                 value={formData.firstNames}
                                 onChange={handleChange}
+                            />
+                            <TextField
+                                margin="normal"
+                                required
+                                fullWidth
+                                name="email"
+                                label="Correo electrónico"
+                                value={formData.email}
+                                onChange={handleChange}
+                                error={Boolean(emailError)}
+                                helperText={emailError || 'Ejemplo: usuario@email.com'}
+                                type="email"
                             />
                             <TextField
                                 margin="normal"

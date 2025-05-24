@@ -1,32 +1,33 @@
 import React, { useState } from 'react';
-import {
-  Container,
-  Box,
-  Typography,
-  Paper,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  TextField,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  SelectChangeEvent,
-  IconButton,
-  Snackbar,
-  Alert as MuiAlert,
-  Pagination,
-  CircularProgress
-} from '@mui/material';
+import Container from '@mui/material/Container';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import Paper from '@mui/material/Paper';
+import Table from '@mui/material/Table';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import TableCell from '@mui/material/TableCell';
+import TableBody from '@mui/material/TableBody';
+import TableContainer from '@mui/material/TableContainer';
+import TextField from '@mui/material/TextField';
+import Button from '@mui/material/Button';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import Select, { SelectChangeEvent } from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
+import IconButton from '@mui/material/IconButton';
+import Snackbar from '@mui/material/Snackbar';
+import InputAdornment from '@mui/material/InputAdornment';
+import MuiAlert from '@mui/material/Alert';
+import Pagination from '@mui/material/Pagination';
+import CircularProgress from '@mui/material/CircularProgress';
+import Grid from '@mui/material/Grid';
 import EditIcon from '@mui/icons-material/Edit';
+import SearchIcon from '@mui/icons-material/Search';
 import { Navigation } from '../shared/Navigation';
 import { userService } from '../../services/userService';
 import { User } from '../../types/user';
@@ -72,15 +73,45 @@ export const UserList: React.FC = () => {
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const [search, setSearch] = useState('');
-  const { data: result, isLoading, error } = useQuery<{ data: User[]; count: number }, Error>({
-    queryKey: ['users', page, search],
-    queryFn: () => userService.getUsersPaginated(page, pageSize, search),
+  const [searchTerm, setSearchTerm] = useState('');
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout>();
+
+  // Efecto para manejar la búsqueda con debounce
+  React.useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      setSearch(searchTerm);
+      setPage(1); // Resetear a la primera página al buscar
+    }, 500); // 500ms de retraso
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm]);
+
+  const { data: allUsers = [], isLoading, error } = useQuery<User[], Error>({
+    queryKey: ['allUsers'],
+    queryFn: () => userService.getUsers(),
     staleTime: 300000,
   });
   const queryClient = useQueryClient();
-  const users = result?.data || [];
-  const totalCount = result?.count || 0;
-  const totalPages = Math.ceil(totalCount / pageSize);
+  // Filtrar localmente basado en el término de búsqueda
+  const users = allUsers.filter(user => 
+    user.username.toLowerCase().includes(search.toLowerCase()) ||
+    user.fullName?.toLowerCase().includes(search.toLowerCase()) ||
+    user.email?.toLowerCase().includes(search.toLowerCase()) ||
+    user.role.toLowerCase().includes(search.toLowerCase()) ||
+    user.cedula?.toLowerCase().includes(search.toLowerCase()) ||
+    user.phone?.toLowerCase().includes(search.toLowerCase()) ||
+    user.address?.toLowerCase().includes(search.toLowerCase())
+  );
+  
+  const totalCount = users.length;
   // Estado de edición y Snackbar
   const [editUser, setEditUser] = useState<User | null>(null);
   const [editForm, setEditForm] = useState<Partial<User>>({});
@@ -118,71 +149,107 @@ export const UserList: React.FC = () => {
   const handleSnackbarClose = () => setSnackbarOpen(false);
 
   return (
-    <>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <Navigation title="Lista de Usuarios" />
-      <Container>
-        <Box sx={{ mt: 4 }}>
-          <Typography variant="h5" sx={{ color: '#E31C79', mb: 1 }}>
-            Usuarios
-          </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-            <TextField
-              label="Buscar Usuarios"
-              value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1); }}
-              size="small"
-              sx={{ mr: 2 }}
-            />
-            <Typography variant="h6">
-              Total de usuarios: {totalCount}
+      <Box sx={{ flex: 1, overflow: 'hidden' }}>
+        <Container>
+          <Box sx={{ mt: 4, display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <Typography variant="h5" sx={{ color: '#E31C79', mb: 1 }}>
+              Usuarios
             </Typography>
-          </Box>
-          <Paper elevation={1} sx={{ p: 2 }}>
-            <Table sx={{ tableLayout: 'auto', width: '100%' }}>
-              <TableHead>
-                <TableRow>
-                  <TableCell>#</TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>Usuario</TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>Nombre Completo</TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>Rol</TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>Cédula</TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>Teléfono</TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>Dirección/Referencia</TableCell>
-                  {isAdmin && <TableCell sx={{ whiteSpace: 'nowrap' }}>Acciones</TableCell>}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {users.map((user, index) => (
-                  <TableRow key={user.id} hover sx={{ backgroundColor: index % 2 === 0 ? '#ffffff' : '#f5f5f5' }}>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{(page - 1) * pageSize + index + 1}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.username, search)}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.fullName, search)}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.role, search)}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(formatCedula(user.cedula ?? ''), search)}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(formatPhone(user.phone ?? ''), search)}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.address ?? '', search)}</TableCell>
-                    {isAdmin && (
-                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                        <IconButton onClick={() => openEdit(user)} size="small">
-                          <EditIcon />
-                        </IconButton>
-                      </TableCell>
-                    )}
+            <Grid item xs={12} md={4}>
+              <Paper elevation={2} sx={{ p: 2, textAlign: 'center', mb: 2 }}>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Total de Usuarios
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: '#E31C79' }}>
+                  {totalCount}
+                </Typography>
+              </Paper>
+            </Grid>
+            <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
+              <Grid container spacing={2} alignItems="center">
+                <Grid item xs={12}>
+                  <TextField
+                    label="Buscar por nombre, usuario o correo"
+                    variant="outlined"
+                    size="small"
+                    fullWidth
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <SearchIcon />
+                        </InputAdornment>
+                      )
+                    }}
+                  />
+                </Grid>
+              </Grid>
+            </Paper>
+            <TableContainer component={Paper} elevation={1} sx={{ flex: 1, overflow: 'auto', maxHeight: 'calc(100vh - 300px)' }}>
+              <Table stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>#</TableCell>
+                    <TableCell>Usuario</TableCell>
+                    <TableCell>Nombre Completo</TableCell>
+                    <TableCell>Correo electrónico</TableCell>
+                    <TableCell>Rol</TableCell>
+                    <TableCell>Cédula</TableCell>
+                    <TableCell>Teléfono</TableCell>
+                    <TableCell>Dirección/Referencia</TableCell>
+                    {isAdmin && <TableCell align="center">Acciones</TableCell>}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-              <Pagination
-                count={totalPages}
-                page={page}
-                onChange={(_, value) => setPage(value)}
-                color="primary"
-              />
+                </TableHead>
+                <TableBody>
+                  {users.map((user: User, index: number) => (
+                    <TableRow 
+                      key={user.id} 
+                      sx={{
+                        backgroundColor: index % 2 === 0 ? '#ffffff' : '#f5f5f5',
+                        '&:hover': {
+                          backgroundColor: 'rgba(227, 28, 121, 0.04)',
+                        }
+                      }}
+                    >
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{index + 1}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.username, search)}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.fullName, search)}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.email, search)}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.role, search)}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(formatCedula(user.cedula ?? ''), search)}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(formatPhone(user.phone ?? ''), search)}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.address ?? '', search)}</TableCell>
+                      {isAdmin && (
+                        <TableCell align="center">
+                          <IconButton 
+                            onClick={() => openEdit(user)} 
+                            size="small"
+                            sx={{ 
+                              color: '#E31C79',
+                              '&:hover': {
+                                backgroundColor: 'rgba(227, 28, 121, 0.08)',
+                              }
+                            }}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            
+            <Box sx={{ mt: 2, textAlign: 'center', color: 'text.secondary', py: 2 }}>
+              Mostrando {users.length} de {totalCount} usuarios
             </Box>
-          </Paper>
-        </Box>
-      </Container>
+          </Box>
+        </Container>
+      </Box>
       {isAdmin && (
         <Dialog open={Boolean(editUser)} onClose={handleCloseEdit} fullWidth>
           <DialogTitle>Editar Usuario</DialogTitle>
@@ -194,6 +261,15 @@ export const UserList: React.FC = () => {
               margin="dense"
               value={editForm.fullName || ''}
               onChange={handleInputChange}
+            />
+            <TextField
+              name="email"
+              label="Correo electrónico"
+              fullWidth
+              margin="dense"
+              value={editForm.email || ''}
+              onChange={handleInputChange}
+              type="email"
             />
             <TextField
               name="username"
@@ -257,6 +333,6 @@ export const UserList: React.FC = () => {
           {snackbarMessage}
         </MuiAlert>
       </Snackbar>
-    </>
+    </Box>
   );
 };
