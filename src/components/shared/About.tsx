@@ -66,6 +66,32 @@ const CONTACT_ICONS: Record<string, React.ReactNode> = {
     pinterest: <PinterestIcon sx={{ color: '#E31C79', fontSize: 32 }} />,
 };
 
+// Función para formatear números de teléfono al formato +1 (999) 999-9999
+const formatPhoneNumber = (phoneNumber: string): string => {
+    // Eliminar todo lo que no sea número
+    const cleaned = phoneNumber.replace(/\D/g, '');
+    
+    // Si el número tiene 10 dígitos, asumir que es un número local y agregar +1
+    if (cleaned.length === 10) {
+        return `+1 (${cleaned.substring(0, 3)}) ${cleaned.substring(3, 6)}-${cleaned.substring(6)}`;
+    }
+    // Si el número tiene 11 dígitos y empieza con 1, asumir formato norteamericano
+    else if (cleaned.length === 11 && cleaned.startsWith('1')) {
+        return `+1 (${cleaned.substring(1, 4)}) ${cleaned.substring(4, 7)}-${cleaned.substring(7)}`;
+    }
+    // Si el número tiene 12 dígitos y empieza con 1, asumir formato +1
+    else if (cleaned.length === 12 && cleaned.startsWith('1')) {
+        return `+${cleaned.substring(0, 2)} (${cleaned.substring(2, 5)}) ${cleaned.substring(5, 8)}-${cleaned.substring(8)}`;
+    }
+    // Para otros formatos, intentar hacerlo lo mejor posible
+    else if (cleaned.length >= 10) {
+        return `+${cleaned.substring(0, cleaned.length - 10)} (${cleaned.substring(-10, -7)}) ${cleaned.substring(-7, -4)}-${cleaned.substring(-4)}`;
+    }
+    
+    // Si no se puede formatear, devolver el número limpio
+    return `+${cleaned}`;
+};
+
 export const About: React.FC = () => {
     const [about, setAbout] = useState<AboutMe | null>(null);
     const [loading, setLoading] = useState(true);
@@ -535,7 +561,17 @@ export const About: React.FC = () => {
                                 </Button>
                             </>
                         ) : (
-                            (isPreviewMode ? (editData?.contactos || about.contactos) : about.contactos).map((c: any, idx: number) => (
+                            // Ordenar contactos: primero teléfonos, luego el resto
+                            [...(isPreviewMode ? (editData?.contactos || about.contactos) : about.contactos)]
+                                .sort((a, b) => {
+                                    // Mover teléfonos al principio
+                                    const aIsPhone = ['tel', 'whatsapp', 'alternativo'].includes(a.tipo);
+                                    const bIsPhone = ['tel', 'whatsapp', 'alternativo'].includes(b.tipo);
+                                    if (aIsPhone && !bIsPhone) return -1;
+                                    if (!aIsPhone && bIsPhone) return 1;
+                                    return 0;
+                                })
+                                .map((c: any, idx: number) => (
                                 <motion.div
                                     key={idx}
                                     initial={{ opacity: 0, x: 40 }}
@@ -575,6 +611,27 @@ export const About: React.FC = () => {
                                         <Typography sx={{ color: '#fff', fontSize: 22, fontWeight: 400 }}>
                                             {c.tipo === 'web' ? (
                                                 <a href={`https://${c.valor.replace(/^https?:\/\//, '')}`} target="_blank" rel="noopener noreferrer" style={{ color: '#fff', textDecoration: 'none' }}>{c.valor}</a>
+                                            ) : ['tel', 'whatsapp', 'alternativo'].includes(c.tipo) ? (
+                                                <a href={`tel:${c.valor.replace(/[^\d+]/g, '')}`} style={{ color: '#fff', textDecoration: 'none' }}>
+                                                    {formatPhoneNumber(c.valor)}
+                                                </a>
+                                            ) : c.tipo === 'instagram' ? (
+                                                <a href={`https://www.instagram.com/${c.valor.replace(/^@|https?:\/\/www\.instagram\.com\//g, '')}`} 
+                                                   target="_blank" rel="noopener noreferrer" 
+                                                   style={{ color: '#fff', textDecoration: 'none' }}>
+                                                    @{c.valor.replace(/^@|https?:\/\/www\.instagram\.com\//g, '')}
+                                                </a>
+                                            ) : c.tipo === 'email' ? (
+                                                <a href={`mailto:${c.valor}`} style={{ color: '#fff', textDecoration: 'none' }}>
+                                                    {c.valor}
+                                                </a>
+                                            ) : c.tipo === 'direccion' ? (
+                                                <a href="https://maps.app.goo.gl/F59whdoFUJRAQ2469" 
+                                                   target="_blank" 
+                                                   rel="noopener noreferrer" 
+                                                   style={{ color: '#fff', textDecoration: 'none' }}>
+                                                    {c.valor}
+                                                </a>
                                             ) : c.valor}
                                         </Typography>
                                     </Box>

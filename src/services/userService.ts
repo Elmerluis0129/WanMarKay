@@ -7,7 +7,8 @@ export const userService = {
   getUsers: async (): Promise<User[]> => {
     const { data, error } = await supabase
       .from('users')
-      .select('id, username, full_name, password, email, role, cedula, phone, address, mustChangePassword, passwordHistory, passwordChangedAt');
+      .select('id, username, full_name, password, email, role, cedula, phone, address, mustChangePassword, passwordHistory, passwordChangedAt, created_at')
+      .order('created_at', { ascending: true });
     if (error) throw error;
     return (data || []).map((d: any) => ({
       id: d.id,
@@ -21,16 +22,34 @@ export const userService = {
       address: d.address,
       mustChangePassword: d.mustChangePassword,
       passwordHistory: d.passwordHistory || [],
-      passwordChangedAt: d.passwordChangedAt
+      passwordChangedAt: d.passwordChangedAt,
+      createdAt: d.created_at
     }));
   },
   addUser: async (user: User): Promise<User> => {
+    const userData = {
+      username: user.username,
+      full_name: user.fullName,
+      password: user.password,
+      email: user.email,
+      role: user.role,
+      cedula: user.cedula,
+      phone: user.phone,
+      address: user.address,
+      mustChangePassword: user.mustChangePassword,
+      passwordHistory: user.passwordHistory || [],
+      passwordChangedAt: user.passwordChangedAt,
+      created_at: user.createdAt || new Date().toISOString()
+    };
+
     const { data, error } = await supabase
       .from('users')
-      .insert([{ username: user.username, full_name: user.fullName, password: user.password, email: user.email, role: user.role, cedula: user.cedula, phone: user.phone, address: user.address, mustChangePassword: user.mustChangePassword, passwordHistory: user.passwordHistory || [], passwordChangedAt: user.passwordChangedAt }])
-      .select('id, username, full_name, password, email, role, cedula, phone, address, mustChangePassword, passwordHistory, passwordChangedAt')
+      .insert([userData])
+      .select('id, username, full_name, password, email, role, cedula, phone, address, mustChangePassword, passwordHistory, passwordChangedAt, created_at')
       .single();
+    
     if (error || !data) throw error;
+    
     return {
       id: data.id,
       username: data.username,
@@ -42,15 +61,32 @@ export const userService = {
       phone: data.phone,
       address: data.address,
       mustChangePassword: data.mustChangePassword,
-      passwordHistory: data.passwordHistory || []
+      passwordHistory: data.passwordHistory || [],
+      passwordChangedAt: data.passwordChangedAt,
+      createdAt: data.created_at
     };
   },
   updateUser: async (user: User): Promise<User> => {
+    const userData = {
+      username: user.username,
+      full_name: user.fullName,
+      password: user.password,
+      email: user.email,
+      role: user.role,
+      cedula: user.cedula,
+      phone: user.phone,
+      address: user.address,
+      mustChangePassword: user.mustChangePassword,
+      passwordHistory: user.passwordHistory || [],
+      passwordChangedAt: user.passwordChangedAt,
+      created_at: user.createdAt
+    };
+
     const { data, error } = await supabase
       .from('users')
-      .update({ username: user.username, full_name: user.fullName, password: user.password, email: user.email, role: user.role, cedula: user.cedula, phone: user.phone, address: user.address, mustChangePassword: user.mustChangePassword, passwordHistory: user.passwordHistory || [], passwordChangedAt: user.passwordChangedAt })
+      .update(userData)
       .eq('id', user.id)
-      .select('id, username, full_name, password, email, role, cedula, phone, address, mustChangePassword, passwordHistory, passwordChangedAt')
+      .select('id, username, full_name, password, email, role, cedula, phone, address, mustChangePassword, passwordHistory, passwordChangedAt, created_at')
       .single();
     if (error || !data) throw error;
     const updatedUser: User = {

@@ -22,6 +22,7 @@ import FAQ from '../components/shared/FAQ';
 import About from '../components/shared/About';
 import { BankAccountsPage } from '../components/admin/BankAccountsPage';
 import ChangePassword from '../components/auth/ChangePassword';
+import LoyaltyProgram from '../components/shared/LoyaltyProgram';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -127,6 +128,14 @@ export const AppRoutes: React.FC = () => {
       <Route path="/profile" element={<PrivateRoute><UserProfile /></PrivateRoute>} />
       <Route path="/faq" element={<FAQ />} />
       <Route path="/about" element={<About />} />
+      <Route 
+        path="/fidelidad" 
+        element={
+          <PrivateRoute>
+            <LoyaltyProgram />
+          </PrivateRoute>
+        } 
+      />
       {/* Ruta 404: Página no encontrada */}
       <Route path="*" element={<NotFound />} />
     </Routes>

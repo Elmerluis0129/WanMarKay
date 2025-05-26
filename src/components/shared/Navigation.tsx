@@ -27,6 +27,9 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+import LoyaltyIcon from '@mui/icons-material/Loyalty';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import InfoIcon from '@mui/icons-material/Info';
 import { auth } from '../../services/auth';
 import { aboutMeService } from '../../services/aboutMeService';
 import { useTheme as useMuiTheme } from '@mui/material/styles';
@@ -50,8 +53,47 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
 
     const [anchorElView, setAnchorElView] = useState<null | HTMLElement>(null);
     const [anchorElRegister, setAnchorElRegister] = useState<null | HTMLElement>(null);
-
-    const isActive = (path: string) => location.pathname === path;
+    
+    // Función para verificar si la ruta está activa
+    const isActive = (path: string) => {
+        // Si la ruta es la raíz, solo coincide exactamente
+        if (path === '/') {
+            return location.pathname === path;
+        }
+        
+        // Rutas que deben coincidir exactamente
+        const exactMatchPaths = [
+            '/admin/reports', 
+            '/client', 
+            '/cuentas-bancarias', 
+            '/about', 
+            '/fidelidad'
+        ];
+        
+        // Rutas que son menús desplegables y sus subrutas
+        const menuPaths = {
+            'register': ['/admin/user/create', '/admin/invoice/create', '/admin/payment/register'],
+            'view': ['/admin/payment/list', '/admin/user/list', '/admin/invoice/list']
+        };
+        
+        // Verificar coincidencia exacta para rutas específicas
+        if (exactMatchPaths.includes(path)) {
+            return location.pathname === path;
+        }
+        
+        // Manejar rutas de menús desplegables
+        if (path === '/admin/register' && menuPaths.register.some(p => location.pathname === p)) {
+            return true;
+        }
+        
+        if (path === '/admin/view' && menuPaths.view.some(p => location.pathname.startsWith(p))) {
+            return true;
+        }
+        
+        // Para otras rutas que pueden tener subrutas
+        return location.pathname === path || 
+               (location.pathname.startsWith(`${path}/`) && !location.pathname.startsWith(`${path}//`));
+    };
 
     const handleOpenView = (event: React.MouseEvent<HTMLElement>) => {
         setAnchorElRegister(null);
@@ -148,6 +190,25 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                         endIcon={<ArrowDropDownIcon />}
                                         onMouseEnter={handleOpenRegister}
                                         onClick={handleOpenRegister}
+                                        startIcon={<AddCircleIcon />}
+                                        sx={{
+                                            '&:hover': {
+                                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                                transform: 'translateY(-2px)'
+                                            },
+                                            transition: 'all 0.2s ease-in-out',
+                                            mx: 0.5,
+                                            px: 2,
+                                            borderRadius: 2,
+                                            ...(isActive('/admin/register') ? {
+                                                backgroundColor: theme.palette.mode === 'dark' ? theme.palette.primary.main : 'rgba(0, 0, 0, 0.08)',
+                                                color: theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : theme.palette.text.primary,
+                                                fontWeight: 'bold',
+                                                '&:hover': {
+                                                    backgroundColor: theme.palette.mode === 'dark' ? theme.palette.primary.dark : 'rgba(0, 0, 0, 0.12)'
+                                                }
+                                            } : {})
+                                        }}
                                     >
                                         Registrar
                                     </Button>
@@ -156,26 +217,57 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                         anchorEl={anchorElRegister}
                                         open={Boolean(anchorElRegister)}
                                         onClose={handleCloseRegister}
-                                        MenuListProps={{ onMouseLeave: handleCloseRegister }}
+                                        MenuListProps={{ 
+                                            onMouseLeave: handleCloseRegister,
+                                            sx: {
+                                                '& .MuiMenuItem-root': {
+                                                    padding: '8px 24px',
+                                                    '&:hover': {
+                                                        backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'
+                                                    }
+                                                }
+                                            }
+                                        }}
                                     >
-                                        <MenuItem onClick={() => { navigate('/admin/user/create'); handleCloseRegister(); }}>Registrar Usuario</MenuItem>
-                                        <MenuItem onClick={() => { navigate('/admin/invoice/create'); handleCloseRegister(); }}>Registrar Factura</MenuItem>
-                                        <MenuItem onClick={() => { navigate('/admin/payment/register'); handleCloseRegister(); }}>Registrar Pago</MenuItem>
+                                        <MenuItem onClick={() => { navigate('/admin/user/create'); handleCloseRegister(); }}>
+                                            <ListItemIcon><PersonAddIcon fontSize="small" /></ListItemIcon>
+                                            <ListItemText>Registrar Usuario</ListItemText>
+                                        </MenuItem>
+                                        <MenuItem onClick={() => { navigate('/admin/invoice/create'); handleCloseRegister(); }}>
+                                            <ListItemIcon><ReceiptIcon fontSize="small" /></ListItemIcon>
+                                            <ListItemText>Registrar Factura</ListItemText>
+                                        </MenuItem>
+                                        <MenuItem onClick={() => { navigate('/admin/payment/register'); handleCloseRegister(); }}>
+                                            <ListItemIcon><PaymentIcon fontSize="small" /></ListItemIcon>
+                                            <ListItemText>Registrar Pago</ListItemText>
+                                        </MenuItem>
                                     </Menu>
 
                                     
                                     <Button
                                         color="inherit"
                                         variant={isActive('/admin/reports') ? 'contained' : 'text'}
-                                        sx={isActive('/admin/reports') ? {
-                                            backgroundColor: theme.palette.background.paper,
-                                            color: theme.palette.text.primary,
-                                            '&:hover': {
-                                                backgroundColor: theme.palette.mode === 'dark'
-                                                    ? 'rgba(255, 255, 255, 0.15)'
-                                                    : 'rgba(0, 0, 0, 0.08)'
-                                            }
-                                        } : {}}
+                                        sx={{
+                                            ...(isActive('/admin/reports') ? {
+                                                backgroundColor: theme.palette.mode === 'dark' ? theme.palette.primary.main : 'rgba(0, 0, 0, 0.08)',
+                                                color: theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : theme.palette.text.primary,
+                                                fontWeight: 'bold',
+                                                '&:hover': {
+                                                    backgroundColor: theme.palette.mode === 'dark' ? theme.palette.primary.dark : 'rgba(0, 0, 0, 0.12)'
+                                                },
+                                                boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                                                transform: 'translateY(-2px)'
+                                            } : {
+                                                '&:hover': {
+                                                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                                    transform: 'translateY(-2px)'
+                                                }
+                                            }),
+                                            transition: 'all 0.2s ease-in-out',
+                                            mx: 0.5,
+                                            px: 2,
+                                            borderRadius: 2
+                                        }}
                                         onClick={() => navigate('/admin/reports')}
                                         startIcon={<AssessmentIcon fontSize="small" />}
                                     >
@@ -187,6 +279,25 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                         endIcon={<ArrowDropDownIcon />}
                                         onMouseEnter={handleOpenView}
                                         onClick={handleOpenView}
+                                        startIcon={<ReceiptIcon />}
+                                        sx={{
+                                            '&:hover': {
+                                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                                transform: 'translateY(-2px)'
+                                            },
+                                            transition: 'all 0.2s ease-in-out',
+                                            mx: 0.5,
+                                            px: 2,
+                                            borderRadius: 2,
+                                            ...(isActive('/admin/view') ? {
+                                                backgroundColor: theme.palette.mode === 'dark' ? theme.palette.primary.main : 'rgba(0, 0, 0, 0.08)',
+                                                color: theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : theme.palette.text.primary,
+                                                fontWeight: 'bold',
+                                                '&:hover': {
+                                                    backgroundColor: theme.palette.mode === 'dark' ? theme.palette.primary.dark : 'rgba(0, 0, 0, 0.12)'
+                                                }
+                                            } : {})
+                                        }}
                                     >
                                         Ver
                                     </Button>
@@ -197,9 +308,18 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                         onClose={handleCloseView}
                                         MenuListProps={{ onMouseLeave: handleCloseView }}
                                     >
-                                        <MenuItem onClick={() => { navigate('/admin/payment/list'); handleCloseView(); }}>Ver Pagos</MenuItem>
-                                        <MenuItem onClick={() => { navigate('/admin/user/list'); handleCloseView(); }}>Ver Usuarios</MenuItem>
-                                        <MenuItem onClick={() => { navigate('/admin'); handleCloseView(); }}>Ver Facturas</MenuItem>
+                                        <MenuItem onClick={() => { navigate('/admin/payment/list'); handleCloseView(); }}>
+                                            <ListItemIcon><PaymentIcon fontSize="small" /></ListItemIcon>
+                                            <ListItemText>Ver Pagos</ListItemText>
+                                        </MenuItem>
+                                        <MenuItem onClick={() => { navigate('/admin/user/list'); handleCloseView(); }}>
+                                            <ListItemIcon><PersonAddIcon fontSize="small" /></ListItemIcon>
+                                            <ListItemText>Ver Usuarios</ListItemText>
+                                        </MenuItem>
+                                        <MenuItem onClick={() => { navigate('/admin'); handleCloseView(); }}>
+                                            <ListItemIcon><ReceiptIcon fontSize="small" /></ListItemIcon>
+                                            <ListItemText>Ver Facturas</ListItemText>
+                                        </MenuItem>
                                     </Menu>
 
                                     
@@ -212,6 +332,26 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                     variant={isActive('/client') ? 'contained' : 'text'}
                                     onClick={() => navigate('/client')}
                                     startIcon={<ReceiptIcon fontSize="small" />}
+                                    sx={{
+                                        ...(isActive('/client') ? {
+                                            backgroundColor: theme.palette.primary.main,
+                                            color: theme.palette.primary.contrastText,
+                                            '&:hover': {
+                                                backgroundColor: theme.palette.primary.dark
+                                            },
+                                            boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                                            transform: 'translateY(-2px)'
+                                        } : {
+                                            '&:hover': {
+                                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                                transform: 'translateY(-2px)'
+                                            }
+                                        }),
+                                        transition: 'all 0.2s ease-in-out',
+                                        mx: 0.5,
+                                        px: 2,
+                                        borderRadius: 2
+                                    }}
                                 >
                                     Mis Facturas
                                 </Button>
@@ -220,6 +360,28 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                 color="inherit"
                                 variant={isActive('/cuentas-bancarias') ? 'contained' : 'text'}
                                 onClick={() => navigate('/cuentas-bancarias')}
+                                startIcon={<AccountBalanceIcon />}
+                                sx={{
+                                    ...(isActive('/cuentas-bancarias') ? {
+                                        backgroundColor: theme.palette.mode === 'dark' ? theme.palette.primary.main : 'rgba(0, 0, 0, 0.08)',
+                                        color: theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : theme.palette.text.primary,
+                                        fontWeight: 'bold',
+                                        '&:hover': {
+                                            backgroundColor: theme.palette.mode === 'dark' ? theme.palette.primary.dark : 'rgba(0, 0, 0, 0.12)'
+                                        },
+                                        boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                                        transform: 'translateY(-2px)'
+                                    } : {
+                                        '&:hover': {
+                                            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                            transform: 'translateY(-2px)'
+                                        }
+                                    }),
+                                    transition: 'all 0.2s ease-in-out',
+                                    mx: 0.5,
+                                    px: 2,
+                                    borderRadius: 2
+                                }}
                             >
                                 Cuentas Bancarias
                             </Button>
@@ -227,8 +389,59 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                 color="inherit"
                                 variant={isActive('/about') ? 'contained' : 'text'}
                                 onClick={() => navigate('/about')}
+                                startIcon={<InfoIcon />}
+                                sx={{
+                                    ...(isActive('/about') ? {
+                                        backgroundColor: theme.palette.mode === 'dark' ? theme.palette.primary.main : 'rgba(0, 0, 0, 0.08)',
+                                        color: theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : theme.palette.text.primary,
+                                        fontWeight: 'bold',
+                                        '&:hover': {
+                                            backgroundColor: theme.palette.mode === 'dark' ? theme.palette.primary.dark : 'rgba(0, 0, 0, 0.12)'
+                                        },
+                                        boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                                        transform: 'translateY(-2px)'
+                                    } : {
+                                        '&:hover': {
+                                            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                            transform: 'translateY(-2px)'
+                                        }
+                                    }),
+                                    transition: 'all 0.2s ease-in-out',
+                                    mx: 0.5,
+                                    px: 2,
+                                    borderRadius: 2
+                                }}
                             >
                                 Sobre Wanda
+                            </Button>
+                            <Button
+                                color="inherit"
+                                variant={isActive('/fidelidad') ? 'contained' : 'text'}
+                                onClick={() => navigate('/fidelidad')}
+                                startIcon={<LoyaltyIcon />}
+                                sx={{
+                                    ...(isActive('/fidelidad') ? {
+                                        backgroundColor: theme.palette.mode === 'dark' ? theme.palette.primary.main : 'rgba(0, 0, 0, 0.08)',
+                                        color: theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : theme.palette.text.primary,
+                                        fontWeight: 'bold',
+                                        '&:hover': {
+                                            backgroundColor: theme.palette.mode === 'dark' ? theme.palette.primary.dark : 'rgba(0, 0, 0, 0.12)'
+                                        },
+                                        boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                                        transform: 'translateY(-2px)'
+                                    } : {
+                                        '&:hover': {
+                                            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                            transform: 'translateY(-2px)'
+                                        }
+                                    }),
+                                    transition: 'all 0.2s ease-in-out',
+                                    mx: 0.5,
+                                    px: 2,
+                                    borderRadius: 2
+                                }}
+                            >
+                                 Programa de Fidelidad
                             </Button>
                             <Button
                                 color="inherit"
@@ -310,6 +523,10 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                     </ListItem>
                     <ListItem button onClick={() => { navigate('/about'); setDrawerOpen(false); }}>
                         <ListItemText primary="Sobre Wanda" />
+                    </ListItem>
+                    <ListItem button onClick={() => { navigate('/fidelidad'); setDrawerOpen(false); }}>
+                        <ListItemIcon><LoyaltyIcon /></ListItemIcon>
+                        <ListItemText primary="Programa de Fidelidad" />
                     </ListItem>
                     <ListItem button onClick={handleLogout}>
                         <ListItemIcon><LogoutIcon /></ListItemIcon>

@@ -136,7 +136,8 @@ export const CreateUser: React.FC = () => {
             address: formData.address,
             mustChangePassword: true,
             passwordHistory: [],
-            passwordChangedAt: rdDate
+            passwordChangedAt: rdDate,
+            createdAt: rdDate // Usamos la misma fecha para created_at
         };
 
         try {

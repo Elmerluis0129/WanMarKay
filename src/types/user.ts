@@ -13,6 +13,7 @@ export interface User {
     mustChangePassword?: boolean;
     passwordHistory?: string[];
     passwordChangedAt?: string;
+    createdAt?: string; // Fecha de creación del usuario
 }
 
 export interface LoginCredentials {
