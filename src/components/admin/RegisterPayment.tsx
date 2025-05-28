@@ -10,8 +10,15 @@ import {
     Autocomplete,
     Grid,
     Alert,
-    MenuItem
+    MenuItem,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogContentText,
+    DialogActions,
+    IconButton
 } from '@mui/material';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { Invoice } from '../../types/invoice';
 import { invoiceService } from '../../services/invoiceService';
 import { paymentService } from '../../services/paymentService';
@@ -52,6 +59,11 @@ export const RegisterPayment: React.FC = () => {
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [loadError, setLoadError] = useState<string|null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+    const [pendingPayment, setPendingPayment] = useState<{
+        validatedDate: Date | null;
+        paymentAmount: number;
+    } | null>(null);
     const navigate = useNavigate();
     // Calcular mora pendiente o 0
     const pendingLateFee = selectedInvoice?.lateFeeAmount ?? 0;
@@ -89,19 +101,71 @@ export const RegisterPayment: React.FC = () => {
         return <Alert severity="error">Error al cargar facturas: {loadError}</Alert>;
     }
 
+    // Función para validar la fecha y manejar meses mayores a 12
+    const parseAndValidateDate = (dateString: string): Date | null => {
+        if (!dateString) return null;
+        
+        const [year, month, day] = dateString.split('-').map(Number);
+        
+        // Validar que la fecha sea válida
+        const date = new Date(year, month - 1, day);
+        
+        // Verificar si la fecha es válida
+        if (isNaN(date.getTime())) {
+            return null;
+        }
+        
+        // Ajustar el mes si es mayor a 12
+        if (month > 12) {
+            const extraYears = Math.floor((month - 1) / 12);
+            date.setFullYear(year + extraYears);
+            date.setMonth((month - 1) % 12);
+        }
+        
+        return date;
+    };
+
     const handlePaymentSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (isSubmitting) return;
-        if (!selectedInvoice || !amount || !paymentDate) {
+        
+        // Validar campos requeridos
+        if (!selectedInvoice || !amount) {
             setMessage({ text: 'Por favor complete todos los campos', isError: true });
             return;
         }
-
+        
+        // Validar y formatear la fecha
+        const paymentDateInput = (document.getElementById('payment-date') as HTMLInputElement)?.value;
+        if (!paymentDateInput) {
+            setMessage({ text: 'Por favor ingrese una fecha de pago válida', isError: true });
+            return;
+        }
+        
+        const validatedDate = parseAndValidateDate(paymentDateInput);
+        if (!validatedDate) {
+            setMessage({ text: 'La fecha ingresada no es válida', isError: true });
+            return;
+        }
+        
         const paymentAmount = parseFloat(amount);
         if (isNaN(paymentAmount) || paymentAmount <= 0) {
             setMessage({ text: 'El monto debe ser un número válido mayor a 0', isError: true });
             return;
         }
+        
+        // Si no hay archivo adjunto, mostrar diálogo de confirmación
+        if (!paymentAttachmentFile) {
+            setPendingPayment({
+                validatedDate,
+                paymentAmount
+            });
+            setShowConfirmDialog(true);
+            return;
+        }
+        
+        // Si hay archivo adjunto, proceder con el pago
+        await processPayment(validatedDate, paymentAmount);
 
         // Priorizar cobro de mora
         const pendingLateFee = selectedInvoice.lateFeeAmount ?? 0;
@@ -124,7 +188,7 @@ export const RegisterPayment: React.FC = () => {
         // Crear el nuevo pago
         const newPayment = {
             id: uuidv4(),
-            date: paymentDate.toISOString(),
+            date: validatedDate.toISOString(),
             amount: paymentAmount,
             lateFeePaid: feePayment,
             installmentNumber: selectedInvoice.payments ? selectedInvoice.payments.length + 1 : 1,
@@ -157,7 +221,7 @@ export const RegisterPayment: React.FC = () => {
             }
             // Lógica de crédito
             if (updatedInvoice.paymentType === 'credit' && updatedInvoice.paymentPlan) {
-                const dateObj = paymentDate;
+                const dateObj = validatedDate;
                 if (updatedInvoice.paymentPlan.nextPaymentDate) {
                     const next = new Date(updatedInvoice.paymentPlan.nextPaymentDate);
                     if (dateObj > next && updatedInvoice.status !== 'paid') updatedInvoice.status = 'delayed';
@@ -165,7 +229,7 @@ export const RegisterPayment: React.FC = () => {
                 updatedInvoice.paymentPlan = {
                     ...updatedInvoice.paymentPlan,
                     paidInstallments: (updatedInvoice.paymentPlan.paidInstallments || 0) + 1,
-                    nextPaymentDate: calculateNextPaymentDate(updatedInvoice.paymentPlan.frequency, paymentDate.toISOString())
+                    nextPaymentDate: calculateNextPaymentDate(updatedInvoice.paymentPlan.frequency, validatedDate.toISOString())
                 };
             }
             await invoiceService.updateInvoice(updatedInvoice);
@@ -204,10 +268,145 @@ export const RegisterPayment: React.FC = () => {
     const handleAttachmentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
+            // Verificar que el archivo sea una imagen
+            if (!file.type.startsWith('image/')) {
+                setMessage({ text: 'Por favor suba un archivo de imagen válido', isError: true });
+                return;
+            }
             setPaymentAttachmentFile(file);
             const url = URL.createObjectURL(file);
             setPaymentAttachmentPreview(url);
         }
+    };
+    
+    // Procesar el pago después de confirmar
+    const processPayment = async (validatedDate: Date, paymentAmount: number) => {
+        if (!selectedInvoice) return;
+        
+        // Priorizar cobro de mora
+        const pendingLateFee = selectedInvoice.lateFeeAmount ?? 0;
+        const principalPending = selectedInvoice.remainingAmount;
+        const totalPending = pendingLateFee + principalPending;
+        if (paymentAmount > totalPending) {
+            setMessage({ text: 'El monto no puede ser mayor al total pendiente (principal + mora)', isError: true });
+            return;
+        }
+
+        // Determinar cómo se aplica el pago: primero mora, luego principal
+        let feePayment = 0;
+        let principalPayment = 0;
+        if (paymentAmount <= pendingLateFee) {
+            feePayment = paymentAmount;
+        } else {
+            feePayment = pendingLateFee;
+            principalPayment = paymentAmount - pendingLateFee;
+        }
+        
+        // Subir el archivo si existe
+        let attachmentUrl = '';
+        if (paymentAttachmentFile) {
+            try {
+                // Aquí deberías implementar la lógica para subir el archivo
+                // Por ahora, creamos una URL local para el archivo
+                attachmentUrl = URL.createObjectURL(paymentAttachmentFile);
+                console.log('Archivo adjunto preparado:', attachmentUrl);
+            } catch (error) {
+                console.error('Error subiendo archivo:', error);
+                setMessage({ text: 'Error al subir el comprobante. Por favor intente de nuevo.', isError: true });
+                return;
+            }
+        }
+        
+        // Crear el nuevo pago
+        const newPayment = {
+            id: uuidv4(),
+            date: validatedDate.toISOString(),
+            amount: paymentAmount,
+            lateFeePaid: feePayment,
+            installmentNumber: selectedInvoice.payments ? selectedInvoice.payments.length + 1 : 1,
+            method,
+            attachment: attachmentUrl || undefined
+        };
+
+        // Registrar el pago y actualizar la factura
+        try {
+            setIsSubmitting(true);
+            // Registrar pago pasando el id de la factura
+            await paymentService.registerPayment(selectedInvoice.id, newPayment);
+            // Calcular nuevos montos de mora y principal
+            const newLateFeeRemaining = Math.max(pendingLateFee - feePayment, 0);
+            const newPrincipalRemaining = Math.max(principalPending - principalPayment, 0);
+            const newLateFeePercentage = principalPending > 0 ? (newLateFeeRemaining / principalPending) * 100 : 0;
+            
+            const updatedInvoice = {
+                ...selectedInvoice,
+                // Actualizar mora y principal pendientes
+                lateFeeAmount: newLateFeeRemaining,
+                lateFeePercentage: newLateFeeRemaining > 0 ? newLateFeePercentage : 0,
+                remainingAmount: newPrincipalRemaining,
+                payments: [...(selectedInvoice.payments || []), newPayment]
+            } as Invoice;
+            
+            // Actualizar estado de factura
+            if (updatedInvoice.remainingAmount === 0 && (updatedInvoice.lateFeeAmount ?? 0) === 0) {
+                updatedInvoice.status = 'paid';
+            } else if (updatedInvoice.payments?.length === 1) {
+                updatedInvoice.status = 'on_time';
+            }
+            
+            // Lógica de crédito
+            if (updatedInvoice.paymentType === 'credit' && updatedInvoice.paymentPlan) {
+                if (updatedInvoice.paymentPlan.nextPaymentDate) {
+                    const next = new Date(updatedInvoice.paymentPlan.nextPaymentDate);
+                    if (validatedDate > next && updatedInvoice.status !== 'paid') {
+                        updatedInvoice.status = 'delayed';
+                    }
+                }
+                updatedInvoice.paymentPlan = {
+                    ...updatedInvoice.paymentPlan,
+                    paidInstallments: (updatedInvoice.paymentPlan.paidInstallments || 0) + 1,
+                    nextPaymentDate: calculateNextPaymentDate(updatedInvoice.paymentPlan.frequency, validatedDate.toISOString())
+                };
+            }
+            
+            await invoiceService.updateInvoice(updatedInvoice);
+            
+            setMessage({ 
+                text: `Pago registrado: RD$ ${feePayment.toFixed(2)} a mora y RD$ ${principalPayment.toFixed(2)} al capital.`,
+                isError: false 
+            });
+            
+            // Limpiar el formulario
+            setSelectedInvoice(null);
+            setAmount('');
+            setPaymentDate(new Date());
+            setPaymentAttachmentFile(null);
+            setPaymentAttachmentPreview(null);
+            setPendingPayment(null);
+            
+        } catch (error: any) {
+            console.error('Error al registrar el pago:', error);
+            setMessage({ 
+                text: error.message || 'Error al registrar el pago. Por favor intente de nuevo.', 
+                isError: true 
+            });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+    
+    const handleConfirmPayment = async () => {
+        setShowConfirmDialog(false);
+        if (pendingPayment && pendingPayment.validatedDate) {
+            await processPayment(pendingPayment.validatedDate, pendingPayment.paymentAmount);
+        } else {
+            setMessage({ text: 'Error: Fecha de pago no válida', isError: true });
+        }
+    };
+    
+    const handleCancelPayment = () => {
+        setShowConfirmDialog(false);
+        setPendingPayment(null);
     };
 
     return (
@@ -217,18 +416,18 @@ export const RegisterPayment: React.FC = () => {
                 <Paper elevation={3} sx={{ mt: 4, p: 4, bgcolor: 'background.paper' }}>
                     {/* Botón Volver */}
                     <Grid item xs={12}>
-                                    <Button
-                                        variant="text"
-                                        startIcon={<span role="img" aria-label="Volver">🔙</span>}
-                                        fullWidth
-                                        sx={{ color: '#E31C79', mt: 1, fontSize: '1.1rem' }}
-                                        onClick={() => {
-                                            navigate('/admin');
-                                        }}
-                                    >
-                                        Volver
-                                    </Button>
-                                </Grid>
+                        <Button
+                            variant="text"
+                            startIcon={<span role="img" aria-label="Volver">🔙</span>}
+                            fullWidth
+                            sx={{ color: '#E31C79', mt: 1, fontSize: '1.1rem' }}
+                            onClick={() => {
+                                navigate('/admin');
+                            }}
+                        >
+                            Volver
+                        </Button>
+                    </Grid>
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                         <Typography variant="h5" sx={{ color: '#E31C79' }}>
                             Registrar Pago
@@ -328,9 +527,19 @@ export const RegisterPayment: React.FC = () => {
                                                 fullWidth
                                                 label="Fecha de Pago"
                                                 type="date"
+                                                id="payment-date"
                                                 value={paymentDate ? paymentDate.toISOString().split('T')[0] : ''}
-                                                onChange={e => setPaymentDate(new Date(e.target.value))}
+                                                onChange={e => {
+                                                    const date = new Date(e.target.value);
+                                                    if (!isNaN(date.getTime())) {
+                                                        setPaymentDate(date);
+                                                    }
+                                                }}
                                                 InputLabelProps={{ shrink: true }}
+                                                inputProps={{
+                                                    max: new Date().toISOString().split('T')[0], // No permitir fechas futuras
+                                                    pattern: '\\d{4}-\\d{2}-\\d{2}'
+                                                }}
                                                 required
                                             />
                                         </Grid>
@@ -350,14 +559,67 @@ export const RegisterPayment: React.FC = () => {
                                             </TextField>
                                         </Grid>
                                         {/* Subir comprobante de pago */}
-                                        <Grid item xs={12} md={6}>
-                                            <Button variant="contained" component="label" sx={{ backgroundColor: '#E31C79', '&:hover': { backgroundColor: '#C4156A' } }}>
-                                                Subir Comprobante
-                                                <input type="file" hidden accept="image/*" onChange={handleAttachmentChange} />
+                                        <Grid item xs={12}>
+                                            <Typography variant="subtitle2" sx={{ mb: 1 }}>Comprobante de Pago (Opcional)</Typography>
+                                            <Button 
+                                                variant="outlined" 
+                                                component="label" 
+                                                fullWidth
+                                                sx={{ 
+                                                    borderColor: paymentAttachmentFile ? 'success.main' : 'grey.300',
+                                                    color: paymentAttachmentFile ? 'success.main' : 'inherit',
+                                                    '&:hover': { 
+                                                        borderColor: paymentAttachmentFile ? 'success.dark' : 'grey.400',
+                                                        backgroundColor: 'action.hover' 
+                                                    },
+                                                    mb: 1
+                                                }}
+                                            >
+                                                {paymentAttachmentFile ? 'Cambiar Comprobante' : 'Seleccionar Comprobante'}
+                                                <input 
+                                                    type="file" 
+                                                    hidden 
+                                                    accept="image/*" 
+                                                    onChange={handleAttachmentChange} 
+                                                />
                                             </Button>
                                             {paymentAttachmentPreview && (
-                                                <Box component="img" src={paymentAttachmentPreview} alt="Comprobante" sx={{ mt: 2, maxWidth: '100%', maxHeight: 200 }} />
+                                                <Box sx={{ mt: 2, position: 'relative', display: 'inline-block' }}>
+                                                    <Box 
+                                                        component="img" 
+                                                        src={paymentAttachmentPreview} 
+                                                        alt="Comprobante de pago" 
+                                                        sx={{ 
+                                                            maxWidth: '100%', 
+                                                            maxHeight: 200, 
+                                                            border: '1px solid', 
+                                                            borderColor: 'divider',
+                                                            borderRadius: 1
+                                                        }} 
+                                                    />
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => {
+                                                            setPaymentAttachmentFile(null);
+                                                            setPaymentAttachmentPreview(null);
+                                                        }}
+                                                        sx={{
+                                                            position: 'absolute',
+                                                            top: 8,
+                                                            right: 8,
+                                                            backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                                                            '&:hover': {
+                                                                backgroundColor: 'rgba(255, 255, 255, 0.9)'
+                                                            }
+                                                        }}
+                                                    >
+                                                        <DeleteIcon fontSize="small" color="error" />
+                                                    </IconButton>
+                                                </Box>
                                             )}
+                                            <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
+                                                Suba una imagen del comprobante de pago (opcional)
+                                            </Typography>
                                         </Grid>
                                     </>
                                 )}
@@ -384,6 +646,32 @@ export const RegisterPayment: React.FC = () => {
                     )}
                 </Paper>
             </Container>
+            
+            {/* Diálogo de confirmación para pago sin comprobante */}
+            <Dialog
+                open={showConfirmDialog}
+                onClose={handleCancelPayment}
+                aria-labelledby="alert-dialog-title"
+                aria-describedby="alert-dialog-description"
+            >
+                <DialogTitle id="alert-dialog-title">
+                    ¿Continuar sin comprobante?
+                </DialogTitle>
+                <DialogContent>
+                    <DialogContentText id="alert-dialog-description">
+                        Está a punto de registrar un pago sin adjuntar un comprobante. 
+                        ¿Desea continuar de todos modos?
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCancelPayment} color="primary">
+                        Cancelar
+                    </Button>
+                    <Button onClick={handleConfirmPayment} color="primary" autoFocus>
+                        Confirmar Pago
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </>
     );
 }; 

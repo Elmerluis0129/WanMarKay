@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Box,
     Container,
+    Grid,
     TextField,
     Button,
     Typography,
@@ -24,7 +25,6 @@ import {
     RadioGroup,
     Autocomplete,
     Alert,
-    Grid,
     Dialog,
     DialogTitle,
     DialogContent,
@@ -40,9 +40,10 @@ import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import SearchIcon from '@mui/icons-material/Search';
 import { v4 as uuidv4 } from 'uuid';
-import { Invoice, InvoiceItem, PaymentPlan, User } from '../../types';
-import { userService } from '../../services/userService';
+import { Invoice, InvoiceItem, PaymentPlan, User, PaymentMethod, InvoiceStatus, Payment } from '../../types';
 import { invoiceService } from '../../services/invoiceService';
+import { paymentService } from '../../services/paymentService';
+import { userService } from '../../services/userService';
 import { auth } from '../../services/auth';
 import { storageService } from '../../services/storageService';
 import { Navigation } from '../shared/Navigation';
@@ -81,7 +82,7 @@ const formatDateInput = (date: Date): string => {
 export const CreateInvoice: React.FC = () => {
     const [formData, setFormData] = useState({
         invoiceNumber: '',
-        date: new Date().toISOString().split('T')[0],
+        date: '',
         address: '',
         cedula: '',
         phone: ''
@@ -105,6 +106,19 @@ export const CreateInvoice: React.FC = () => {
     
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [editingItem, setEditingItem] = useState<InvoiceItem | null>(null);
+    const [showPaymentForm, setShowPaymentForm] = useState(false);
+    const [payments, setPayments] = useState<Array<{
+        amount: number;
+        date: string;
+        method: PaymentMethod;
+        reference: string;
+    }>>([]);
+    const [currentPayment, setCurrentPayment] = useState({
+        amount: 0,
+        date: new Date().toISOString().split('T')[0],
+        method: 'cash' as PaymentMethod,
+        reference: ''
+    });
 
     const [paymentType, setPaymentType] = useState<'cash' | 'credit'>('cash');
     const [paymentPlan, setPaymentPlan] = useState<Partial<PaymentPlan>>({
@@ -237,28 +251,72 @@ export const CreateInvoice: React.FC = () => {
             discountAmt = Math.min(discountAmt, subtotal);
         }
         const total = subtotal - discountAmt;
-        return { subtotal, discountAmt, total };
+        const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
+        const remaining = total - totalPaid;
+        return { subtotal, discountAmt, total, totalPaid, remaining };
+    };
+
+    const handleAddPayment = () => {
+        if (currentPayment.amount <= 0) {
+            setSnackbarMessage('El monto del pago debe ser mayor a 0');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+            return;
+        }
+        
+        const { total } = calculateTotal();
+        const currentTotalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+        
+        if (currentTotalPaid + currentPayment.amount > total) {
+            setSnackbarMessage('El monto total de los pagos no puede exceder el total de la factura');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+            return;
+        }
+        
+        setPayments([...payments, { ...currentPayment }]);
+        setCurrentPayment({
+            amount: 0,
+            date: new Date().toISOString().split('T')[0],
+            method: 'cash',
+            reference: ''
+        });
+        setShowPaymentForm(false);
+    };
+
+    const removePayment = (index: number) => {
+        setPayments(payments.filter((_, i) => i !== index));
     };
 
     const saveInvoice = async () => {
         try {
             // La fecha ya viene en ISO YYYY-MM-DD desde el input nativo
             const isoDate = formData.date;
-            const { subtotal, total } = calculateTotal();
+            const { subtotal, total, remaining } = calculateTotal();
             const currentUser = auth.getCurrentUser();
             const startDate = new Date(isoDate);
             let nextPaymentDate = new Date(startDate);
-            switch (paymentPlan.frequency) {
-                case 'weekly': nextPaymentDate.setDate(startDate.getDate() + 7); break;
-                case 'biweekly': nextPaymentDate.setDate(startDate.getDate() + 14); break;
-                case 'monthly': nextPaymentDate.setMonth(startDate.getMonth() + 1); break;
-                default: nextPaymentDate.setMonth(startDate.getMonth() + 1);
+            
+            // Calcular la próxima fecha de pago si es crédito
+            if (paymentType === 'credit') {
+                switch (paymentPlan.frequency) {
+                    case 'weekly': nextPaymentDate.setDate(startDate.getDate() + 7); break;
+                    case 'biweekly': nextPaymentDate.setDate(startDate.getDate() + 14); break;
+                    case 'monthly': nextPaymentDate.setMonth(startDate.getMonth() + 1); break;
+                    default: nextPaymentDate.setMonth(startDate.getMonth() + 1);
+                }
             }
+            
             const today = new Date();
-            const diffDays = Math.ceil((nextPaymentDate.getTime() - today.getTime())/(1000*60*60*24));
-            const initialStatus = diffDays < 0 ? 'delayed' : 'on_time';
+            const diffDays = paymentType === 'credit' ? 
+                Math.ceil((nextPaymentDate.getTime() - today.getTime())/(1000*60*60*24)) : 0;
+                
+            const initialStatus: InvoiceStatus = diffDays < 0 ? 'delayed' : 'on_time';
+            const invoiceId = uuidv4();
+            
+            // Crear la factura primero
             const newInvoice: Invoice = {
-                id: uuidv4(),
+                id: invoiceId,
                 invoiceNumber: formData.invoiceNumber,
                 date: isoDate,
                 clientName: selectedClient!.fullName || selectedClient!.full_name || 'Cliente sin nombre',
@@ -266,16 +324,84 @@ export const CreateInvoice: React.FC = () => {
                 address: formData.address || undefined,
                 cedula: formData.cedula || undefined,
                 phone: formData.phone || undefined,
-                items, subtotal, total,
-                remainingAmount: total,
-                status: initialStatus,
+                items, 
+                subtotal, 
+                total,
+                remainingAmount: remaining,
+                status: remaining <= 0 ? 'paid' : initialStatus,
                 paymentType,
                 discountPercentage: discountType === 'percentage' ? discountValue : (discountValue / total * 100),
                 lateFeePercentage: 0,
-                payments: [],
-                ...(paymentType === 'credit' && { paymentPlan: { ...paymentPlan, paidInstallments: 0, startDate: startDate.toISOString(), nextPaymentDate: nextPaymentDate.toISOString() } as PaymentPlan })
+                payments: [], // Inicialmente sin pagos
+                ...(paymentType === 'credit' && { 
+                    paymentPlan: { 
+                        ...paymentPlan, 
+                        paidInstallments: remaining <= 0 ? 1 : 0, 
+                        startDate: startDate.toISOString(), 
+                        nextPaymentDate: nextPaymentDate.toISOString() 
+                    } as PaymentPlan 
+                })
             };
-            // Actualiza datos del usuario si alguno de sus campos estaba vacío en la base de datos
+
+            // 1. Guardar la factura primero
+            await invoiceService.addInvoice(newInvoice);
+            
+            // 2. Si hay pagos, registrarlos uno por uno
+            if (payments.length > 0) {
+                for (const payment of payments) {
+                    const paymentId = uuidv4();
+                    const paymentData = {
+                        id: paymentId,
+                        invoiceId: invoiceId,
+                        invoiceNumber: formData.invoiceNumber,
+                        date: payment.date,
+                        amount: payment.amount,
+                        method: payment.method,
+                        reference: payment.reference,
+                        createdAt: new Date().toISOString(),
+                        createdBy: auth.getCurrentUser()?.id || '',
+                        createdByName: auth.getCurrentUser()?.fullName || 'Sistema',
+                        installmentNumber: 1,
+                        lateFeePaid: 0 // No aplicamos mora al crear la factura
+                    };
+                    
+                    // Registrar el pago usando el servicio de pagos
+                    await paymentService.registerPayment(invoiceId, {
+                        ...paymentData,
+                        method: paymentData.method as PaymentMethod,
+                        createdAt: paymentData.createdAt,
+                        createdBy: paymentData.createdBy,
+                        createdByName: paymentData.createdByName,
+                        installmentNumber: 1,
+                        lateFeePaid: 0
+                    });
+                }
+                
+                // Actualizar la factura con el estado correcto
+                const updatedInvoice = {
+                    ...newInvoice,
+                    remainingAmount: remaining,
+                    status: (remaining <= 0 ? 'paid' : initialStatus) as InvoiceStatus, // Aseguramos el tipo correcto
+                    payments: payments.map(p => ({
+                        id: uuidv4(),
+                        invoiceId,
+                        invoiceNumber: formData.invoiceNumber,
+                        date: p.date,
+                        amount: p.amount,
+                        method: p.method,
+                        reference: p.reference,
+                        createdAt: new Date().toISOString(),
+                        createdBy: auth.getCurrentUser()?.id || '',
+                        createdByName: auth.getCurrentUser()?.fullName || 'Sistema',
+                        installmentNumber: 1, // Campo requerido
+                        lateFeePaid: 0 // Valor por defecto
+                    } as Payment)) // Aseguramos que cumpla con la interfaz Payment
+                };
+                
+                await invoiceService.updateInvoice(updatedInvoice);
+            }
+
+            // Actualizar datos del usuario si es necesario
             if (selectedClient) {
                 const updates: Partial<User> = {};
                 if (!selectedClient.address && formData.address) updates.address = formData.address;
@@ -289,37 +415,25 @@ export const CreateInvoice: React.FC = () => {
                     await userService.updateUser({ ...selectedClient, ...updates });
                 }
             }
-            // Debug: mostrar en consola el objeto que se insertará
-            console.log('📤 Payload de nueva factura:', {
-                id: newInvoice.id,
-                invoice_number: newInvoice.invoiceNumber,
-                date: newInvoice.date,
-                client_id: newInvoice.clientId,
-                client_name: newInvoice.clientName,
-                address: newInvoice.address,
-                cedula: newInvoice.cedula,
-                phone: newInvoice.phone,
-                items: newInvoice.items,
-                subtotal: newInvoice.subtotal,
-                total: newInvoice.total,
-                remaining_amount: newInvoice.remainingAmount,
-                status: newInvoice.status,
-                payment_type: newInvoice.paymentType,
-                payment_plan: newInvoice.paymentPlan,
-                next_payment_due: newInvoice.paymentPlan?.nextPaymentDate
-            });
-            await invoiceService.addInvoice(newInvoice);
-            setSnackbarMessage('Factura creada exitosamente');
+
+            // Mostrar mensaje de éxito
+            setSnackbarMessage('Factura y pagos registrados exitosamente');
             setSnackbarSeverity('success');
             setSnackbarOpen(true);
-            // reset form
-            setFormData({ invoiceNumber:'', date:new Date().toISOString().split('T')[0], address:'', cedula:'', phone:'' });
-            setSelectedClient(null); setItems([]); setPaymentType('cash');
-            setPaymentPlan({ frequency:'biweekly', totalInstallments:1, installmentAmount:0, startDate:new Date().toISOString().split('T')[0]});
+            
+            // Resetear el formulario
+            setFormData({ invoiceNumber: '', date: new Date().toISOString().split('T')[0], address: '', cedula: '', phone: '' });
+            setSelectedClient(null);
+            setItems([]);
+            setPaymentType('cash');
+            setPaymentPlan({ frequency: 'biweekly', totalInstallments: 1, installmentAmount: 0, startDate: new Date().toISOString().split('T')[0] });
+            setPayments([]); // Limpiar los pagos
+            setShowPaymentForm(false);
+            
         } catch (error: any) {
-            console.error('Error creando factura', error);
+            console.error('Error creando factura:', error);
             const msg = error?.message || JSON.stringify(error);
-            setSnackbarMessage(`Error creando factura: ${msg}`);
+            setSnackbarMessage(`Error al guardar: ${msg}`);
             setSnackbarSeverity('error');
             setSnackbarOpen(true);
         }
@@ -338,6 +452,10 @@ export const CreateInvoice: React.FC = () => {
             }
             if (items.length === 0) { 
                 setSnackbarMessage('Debe agregar al menos un producto'); setSnackbarSeverity('error'); setSnackbarOpen(true);
+                return;
+            }
+            if (!formData.date) { 
+                setSnackbarMessage('La fecha es obligatoria'); setSnackbarSeverity('error'); setSnackbarOpen(true);
                 return;
             }
             if (!formData.invoiceNumber) { 
@@ -456,7 +574,13 @@ export const CreateInvoice: React.FC = () => {
                                     value={formData.date}
                                     onChange={handleChange}
                                     InputLabelProps={{ shrink: true }}
-                                    inputProps={{ lang: 'es-ES' }}
+                                    inputProps={{ 
+                                        lang: 'es-ES',
+                                        min: '2020-01-01',
+                                        max: '2100-12-31'
+                                    }}
+                                    error={!formData.date}
+                                    helperText={!formData.date ? 'La fecha es requerida' : ''}
                                 />
                             </Box>
 
@@ -803,6 +927,136 @@ export const CreateInvoice: React.FC = () => {
                                 </MuiAlert>
                             </Snackbar>
 
+                            {/* Sección de Pagos */}
+                            <Box sx={{ mt: 4, border: '1px solid #e0e0e0', borderRadius: 1, p: 2, mb: 3 }}>
+                                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                                    <Typography variant="h6">Pagos</Typography>
+                                    <Button 
+                                        variant="outlined" 
+                                        onClick={() => setShowPaymentForm(!showPaymentForm)}
+                                        startIcon={showPaymentForm ? <CancelIcon /> : <AddIcon />}
+                                        size="small"
+                                    >
+                                        {showPaymentForm ? 'Cancelar' : 'Agregar Pago'}
+                                    </Button>
+                                </Box>
+
+                                {showPaymentForm && (
+                                    <Box sx={{ mb: 3, p: 2, border: '1px dashed #e0e0e0', borderRadius: 1 }}>
+                                        <Grid container spacing={2}>
+                                            <Grid item xs={12} md={3}>
+                                                <TextField
+                                                    fullWidth
+                                                    type="number"
+                                                    label="Monto"
+                                                    value={currentPayment.amount || ''}
+                                                    onChange={(e) => setCurrentPayment({...currentPayment, amount: parseFloat(e.target.value) || 0})}
+                                                    InputProps={{
+                                                        startAdornment: <InputAdornment position="start">RD$</InputAdornment>,
+                                                    }}
+                                                />
+                                            </Grid>
+                                            <Grid item xs={12} md={3}>
+                                                <TextField
+                                                    fullWidth
+                                                    type="date"
+                                                    label="Fecha de Pago"
+                                                    value={currentPayment.date}
+                                                    onChange={(e) => setCurrentPayment({...currentPayment, date: e.target.value})}
+                                                    InputLabelProps={{ shrink: true }}
+                                                />
+                                            </Grid>
+                                            <Grid item xs={12} md={3}>
+                                                <FormControl fullWidth>
+                                                    <InputLabel>Método</InputLabel>
+                                                    <Select
+                                                        value={currentPayment.method}
+                                                        label="Método"
+                                                        onChange={(e) => setCurrentPayment({...currentPayment, method: e.target.value as PaymentMethod})}
+                                                    >
+                                                        <MenuItem value="cash">Efectivo</MenuItem>
+                                                        <MenuItem value="transfer">Transferencia</MenuItem>
+                                                        <MenuItem value="deposit">Depósito</MenuItem>
+                                                    </Select>
+                                                </FormControl>
+                                            </Grid>
+                                            <Grid item xs={12} md={3}>
+                                                <TextField
+                                                    fullWidth
+                                                    label="Referencia"
+                                                    value={currentPayment.reference}
+                                                    onChange={(e) => setCurrentPayment({...currentPayment, reference: e.target.value})}
+                                                    placeholder="N° de transacción"
+                                                />
+                                            </Grid>
+                                            <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                                                <Button 
+                                                    variant="outlined" 
+                                                    onClick={() => setShowPaymentForm(false)}
+                                                >
+                                                    Cancelar
+                                                </Button>
+                                                <Button 
+                                                    variant="contained" 
+                                                    color="primary"
+                                                    onClick={handleAddPayment}
+                                                >
+                                                    Agregar Pago
+                                                </Button>
+                                            </Grid>
+                                        </Grid>
+                                    </Box>
+                                )}
+
+                                {payments.length > 0 && (
+                                    <TableContainer component={Paper} sx={{ mb: 2 }}>
+                                        <Table size="small">
+                                            <TableHead>
+                                                <TableRow>
+                                                    <TableCell>Monto</TableCell>
+                                                    <TableCell>Fecha</TableCell>
+                                                    <TableCell>Método</TableCell>
+                                                    <TableCell>Referencia</TableCell>
+                                                    <TableCell align="right">Acciones</TableCell>
+                                                </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                                {payments.map((payment, index) => (
+                                                    <TableRow key={index}>
+                                                        <TableCell>RD$ {payment.amount.toFixed(2)}</TableCell>
+                                                        <TableCell>{new Date(payment.date).toLocaleDateString()}</TableCell>
+                                                        <TableCell>
+                                                            {payment.method === 'cash' ? 'Efectivo' : 
+                                                             payment.method === 'transfer' ? 'Transferencia' : 'Depósito'}
+                                                        </TableCell>
+                                                        <TableCell>{payment.reference || 'N/A'}</TableCell>
+                                                        <TableCell align="right">
+                                                            <IconButton 
+                                                                size="small" 
+                                                                color="error"
+                                                                onClick={() => removePayment(index)}
+                                                            >
+                                                                <DeleteIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </TableContainer>
+                                )}
+
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2, pt: 2, borderTop: '1px solid #e0e0e0' }}>
+                                    <Typography variant="subtitle1">Total Factura: <strong>RD$ {calculateTotal().total.toFixed(2)}</strong></Typography>
+                                    <Typography variant="subtitle1">Total Pagado: <strong>RD$ {calculateTotal().totalPaid.toFixed(2)}</strong></Typography>
+                                    <Typography variant="subtitle1">Saldo Pendiente: 
+                                        <strong style={{ color: calculateTotal().remaining <= 0 ? 'green' : 'inherit' }}>
+                                            RD$ {calculateTotal().remaining.toFixed(2)}
+                                        </strong>
+                                    </Typography>
+                                </Box>
+                            </Box>
+
                             <Button
                                 type="submit"
                                 fullWidth
@@ -816,7 +1070,7 @@ export const CreateInvoice: React.FC = () => {
                                     },
                                 }}
                             >
-                                Crear Factura
+                                {calculateTotal().remaining <= 0 ? 'Factura Pagada' : 'Crear Factura'}
                             </Button>
                         </Box>
                     </Paper>

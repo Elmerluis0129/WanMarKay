@@ -335,6 +335,10 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                         onClose={handleCloseView}
                                         MenuListProps={{ onMouseLeave: handleCloseView }}
                                     >
+                                        <MenuItem onClick={() => { navigate('/admin'); handleCloseView(); }}>
+                                            <ListItemIcon><ReceiptIcon fontSize="small" /></ListItemIcon>
+                                            <ListItemText>Ver Facturas</ListItemText>
+                                        </MenuItem>
                                         <MenuItem onClick={() => { navigate('/admin/payment/list'); handleCloseView(); }}>
                                             <ListItemIcon><PaymentIcon fontSize="small" /></ListItemIcon>
                                             <ListItemText>Ver Pagos</ListItemText>
@@ -342,10 +346,6 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                         <MenuItem onClick={() => { navigate('/admin/user/list'); handleCloseView(); }}>
                                             <ListItemIcon><PersonAddIcon fontSize="small" /></ListItemIcon>
                                             <ListItemText>Ver Usuarios</ListItemText>
-                                        </MenuItem>
-                                        <MenuItem onClick={() => { navigate('/admin'); handleCloseView(); }}>
-                                            <ListItemIcon><ReceiptIcon fontSize="small" /></ListItemIcon>
-                                            <ListItemText>Ver Facturas</ListItemText>
                                         </MenuItem>
                                     </Menu>
 

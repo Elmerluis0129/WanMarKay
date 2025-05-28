@@ -286,8 +286,11 @@ export const UserList: React.FC = () => {
                 onChange={handleSelectChange}
                 label="Rol"
               >
-                <MenuItem value="client">Cliente</MenuItem>
+                {currentUser?.role === 'superadmin' && (
+                  <MenuItem value="superadmin">Super Administrador</MenuItem>
+                )}
                 <MenuItem value="admin">Administrador</MenuItem>
+                <MenuItem value="client">Cliente</MenuItem>
               </Select>
             </FormControl>
             <TextField
