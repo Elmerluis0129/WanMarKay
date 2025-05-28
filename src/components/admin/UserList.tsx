@@ -67,7 +67,7 @@ const formatPhone = (value?: string | null): string => {
 
 export const UserList: React.FC = () => {
   const currentUser = auth.getCurrentUser();
-  const isAdmin = currentUser?.role === 'admin';
+  const canEdit = currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
   // Paginación remota y búsqueda con React Query
   const [page, setPage] = useState(1);
   const pageSize = 10;
@@ -199,7 +199,7 @@ export const UserList: React.FC = () => {
                     <TableCell>Cédula</TableCell>
                     <TableCell>Teléfono</TableCell>
                     <TableCell>Dirección/Referencia</TableCell>
-                    {isAdmin && <TableCell align="center">Acciones</TableCell>}
+                    {canEdit && <TableCell align="center">Acciones</TableCell>}
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -221,7 +221,7 @@ export const UserList: React.FC = () => {
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(formatCedula(user.cedula ?? ''), search)}</TableCell>
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(formatPhone(user.phone ?? ''), search)}</TableCell>
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.address ?? '', search)}</TableCell>
-                      {isAdmin && (
+                      {canEdit && (
                         <TableCell align="center">
                           <IconButton 
                             onClick={() => openEdit(user)} 
@@ -249,7 +249,7 @@ export const UserList: React.FC = () => {
           </Box>
         </Container>
       </Box>
-      {isAdmin && (
+      {canEdit && (
         <Dialog open={Boolean(editUser)} onClose={handleCloseEdit} fullWidth>
           <DialogTitle>Editar Usuario</DialogTitle>
           <DialogContent>

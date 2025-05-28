@@ -506,9 +506,9 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                 open={Boolean(anchorElView)}
                                 onClose={() => { handleCloseView(); setDrawerOpen(false); }}
                             >
+                                <MenuItem onClick={() => { navigate('/admin'); handleCloseView(); setDrawerOpen(false); }}>Ver Facturas</MenuItem>
                                 <MenuItem onClick={() => { navigate('/admin/payment/list'); handleCloseView(); setDrawerOpen(false); }}>Ver Pagos</MenuItem>
                                 <MenuItem onClick={() => { navigate('/admin/user/list'); handleCloseView(); setDrawerOpen(false); }}>Ver Usuarios</MenuItem>
-                                <MenuItem onClick={() => { navigate('/admin'); handleCloseView(); setDrawerOpen(false); }}>Ver Facturas</MenuItem>
                             </Menu>
 
                             <ListItem button onClick={handleOpenRegister}>
