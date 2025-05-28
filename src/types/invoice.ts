@@ -62,4 +62,6 @@ export interface Invoice {
     paymentPlan?: PaymentPlan;
     payments?: Payment[];
     nextPaymentDue?: string;
-} 
+    createdBy?: string;
+    createdByFullName?: string;
+}

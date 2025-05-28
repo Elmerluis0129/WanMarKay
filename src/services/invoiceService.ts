@@ -2,13 +2,14 @@ import { supabase } from './supabase';
 import { Invoice } from '../types/invoice';
 import { computeInvoiceStatus } from '../utils/statusUtils';
 import { calculateLateFeePercentage, calculateLateFeeAmount } from '../utils/lateFeeUtils';
+import { auth } from './auth';
 
 export const invoiceService = {
   // Obtener todas las facturas sin paginar
   getAllInvoices: async (): Promise<Invoice[]> => {
     const { data, error } = await supabase
       .from('invoices')
-      .select('id,invoice_number,date,client_id,client_name,address,cedula,phone,items,subtotal,total,remaining_amount,status,discount_percentage,late_fee_percentage,late_fee_amount,payment_type,payment_plan,next_payment_due');
+      .select('id,invoice_number,date,client_id,client_name,address,cedula,phone,items,subtotal,total,remaining_amount,status,discount_percentage,late_fee_percentage,late_fee_amount,payment_type,payment_plan,next_payment_due,created_by,users!invoices_created_by_fkey(full_name)');
     if (error) throw error;
     return (data || []).map((d: any) => {
       const inv: Invoice = {
@@ -33,6 +34,8 @@ export const invoiceService = {
         paymentPlan: d.payment_plan,
         payments: d.payments,
         nextPaymentDue: d.next_payment_due || undefined,
+        createdBy: d.created_by,
+        createdByFullName: d.users?.full_name || 'Usuario desconocido',
       } as Invoice;
       if (inv.paymentType === 'credit') {
         inv.status = computeInvoiceStatus(inv).status;
@@ -47,7 +50,7 @@ export const invoiceService = {
     const to = from + pageSize - 1;
     const { data, error, count } = await supabase
       .from('invoices')
-      .select('id,invoice_number,date,client_id,client_name,address,cedula,phone,items,subtotal,total,remaining_amount,status,discount_percentage,late_fee_percentage,late_fee_amount,payment_type,payment_plan,next_payment_due', { count: 'exact' })
+      .select('id,invoice_number,date,client_id,client_name,address,cedula,phone,items,subtotal,total,remaining_amount,status,discount_percentage,late_fee_percentage,late_fee_amount,payment_type,payment_plan,next_payment_due,created_by,users!invoices_created_by_fkey(full_name)', { count: 'exact' })
       .range(from, to);
     if (error) throw error;
     const invoices: Invoice[] = (data || []).map((d: any) => {
@@ -73,6 +76,8 @@ export const invoiceService = {
         paymentPlan: d.payment_plan,
         payments: d.payments,
         nextPaymentDue: d.next_payment_due || undefined,
+        createdBy: d.created_by,
+        createdByFullName: d.users?.full_name || 'Usuario desconocido',
       } as Invoice;
       if (inv.paymentType === 'credit') {
         inv.status = computeInvoiceStatus(inv).status;
@@ -83,6 +88,12 @@ export const invoiceService = {
   },
 
   addInvoice: async (invoice: Invoice): Promise<Invoice> => {
+    // Obtener el usuario actual
+    const currentUser = auth.getCurrentUser();
+    if (!currentUser) {
+      throw new Error('Usuario no autenticado');
+    }
+
     // Map fields a snake_case para la inserción
     const payload = {
       id: invoice.id,
@@ -99,6 +110,7 @@ export const invoiceService = {
       remaining_amount: invoice.remainingAmount,
       status: invoice.status,
       discount_percentage: invoice.discountPercentage ?? 0,
+      created_by: currentUser.id,
       late_fee_percentage: invoice.lateFeePercentage ?? 0,
       late_fee_amount: invoice.lateFeeAmount ?? 0,
       payment_type: invoice.paymentType,
@@ -108,7 +120,7 @@ export const invoiceService = {
     const { data, error } = await supabase
       .from('invoices')
       .insert([payload])
-      .select('id,invoice_number,date,client_id,client_name,address,cedula,phone,items,subtotal,total,remaining_amount,status,discount_percentage,late_fee_percentage,late_fee_amount,payment_type,payment_plan,next_payment_due')
+      .select('id,invoice_number,date,client_id,client_name,address,cedula,phone,items,subtotal,total,remaining_amount,status,discount_percentage,late_fee_percentage,late_fee_amount,payment_type,payment_plan,next_payment_due,created_by')
       .single();
     if (error || !data) throw error;
     {// Transformo a Invoice
@@ -134,6 +146,7 @@ export const invoiceService = {
         paymentPlan: d.payment_plan,
         payments: d.payments,
         nextPaymentDue: d.next_payment_due || undefined,
+        createdBy: d.created_by,
       } as Invoice;
     }
   },
@@ -171,7 +184,7 @@ export const invoiceService = {
       .from('invoices')
       .update(payload)
       .eq('id', invoice.id)
-      .select('id,invoice_number,date,client_id,client_name,address,cedula,phone,items,subtotal,total,remaining_amount,status,discount_percentage,late_fee_percentage,late_fee_amount,payment_type,payment_plan,next_payment_due')
+      .select('id,invoice_number,date,client_id,client_name,address,cedula,phone,items,subtotal,total,remaining_amount,status,discount_percentage,late_fee_percentage,late_fee_amount,payment_type,payment_plan,next_payment_due,created_by')
       .single();
     if (error || !data) throw error;
     {// Transformo a Invoice
@@ -197,6 +210,7 @@ export const invoiceService = {
         paymentPlan: d.payment_plan,
         payments: d.payments,
         nextPaymentDue: d.next_payment_due || undefined,
+        createdBy: d.created_by,
       } as Invoice;
     }
   },
@@ -204,7 +218,7 @@ export const invoiceService = {
   getClientInvoices: async (clientId: string): Promise<Invoice[]> => {
     const { data, error } = await supabase
       .from('invoices')
-      .select('id,invoice_number,date,client_id,client_name,address,cedula,phone,items,subtotal,total,remaining_amount,status,discount_percentage,late_fee_percentage,late_fee_amount,payment_type,payment_plan,next_payment_due')
+      .select('id,invoice_number,date,client_id,client_name,address,cedula,phone,items,subtotal,total,remaining_amount,status,discount_percentage,late_fee_percentage,late_fee_amount,payment_type,payment_plan,next_payment_due,created_by')
       .eq('client_id', clientId);
     if (error) throw error;
     return (data || []).map((d: any) => {
@@ -230,6 +244,7 @@ export const invoiceService = {
         paymentPlan: d.payment_plan,
         payments: d.payments,
         nextPaymentDue: d.next_payment_due || undefined,
+        createdBy: d.created_by,
       } as Invoice;
       if (inv.paymentType === 'credit') {
         inv.status = computeInvoiceStatus(inv).status;
@@ -242,7 +257,7 @@ export const invoiceService = {
   getInvoiceById: async (id: string): Promise<Invoice> => {
     const { data, error } = await supabase
       .from('invoices')
-      .select('id,invoice_number,date,client_id,client_name,address,cedula,phone,items,subtotal,total,remaining_amount,status,discount_percentage,late_fee_percentage,late_fee_amount,payment_type,payment_plan,next_payment_due')
+      .select('id,invoice_number,date,client_id,client_name,address,cedula,phone,items,subtotal,total,remaining_amount,status,discount_percentage,late_fee_percentage,late_fee_amount,payment_type,payment_plan,next_payment_due,created_by,users!invoices_created_by_fkey(full_name)')
       .eq('id', id)
       .single();
     if (error || !data) throw error;
@@ -269,6 +284,8 @@ export const invoiceService = {
       paymentPlan: d.payment_plan,
       payments: d.payments,
       nextPaymentDue: d.next_payment_due || undefined,
+      createdBy: d.created_by,
+      createdByFullName: d.users?.full_name || 'Usuario desconocido',
     } as Invoice;
     if (inv.paymentType === 'credit') {
       inv.status = computeInvoiceStatus(inv).status;

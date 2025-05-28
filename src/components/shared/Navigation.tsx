@@ -17,6 +17,7 @@ import {
     MenuItem
 } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import LogoutIcon from '@mui/icons-material/Logout';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
@@ -41,9 +42,16 @@ interface NavigationProps {
 }
 
 export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) => {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const location = useLocation();
     const isAdmin = auth.isAdmin();
+    const isSuperAdmin = auth.isSuperAdmin();
+    
+    // Logs de depuración
+    console.log('Usuario actual:', auth.getCurrentUser());
+    console.log('isAdmin:', isAdmin);
+    console.log('isSuperAdmin:', isSuperAdmin);
     const theme = useMuiTheme();
     const { mode, toggleTheme } = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -182,9 +190,8 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
 
                     {!isMobile && (
                         <Stack direction="row" spacing={1}>
-                            {isAdmin ? (
+                            {(isAdmin || isSuperAdmin) ? (
                                 <>
-
                                     <Button
                                         color="inherit"
                                         endIcon={<ArrowDropDownIcon />}
@@ -273,6 +280,26 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                     >
                                         Reportes
                                     </Button>
+
+                                    {isSuperAdmin && (
+                                        <Button 
+                                            color="inherit"
+                                            startIcon={<PersonAddIcon />}
+                                            onClick={() => navigate('/superadmin')}
+                                            sx={{
+                                                '&:hover': {
+                                                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                                    transform: 'translateY(-2px)'
+                                                },
+                                                transition: 'all 0.2s ease-in-out',
+                                                mx: 0.5,
+                                                px: 2,
+                                                borderRadius: 2
+                                            }}
+                                        >
+                                            SuperAdmin
+                                        </Button>
+                                    )}
 
                                     <Button
                                         color="inherit"

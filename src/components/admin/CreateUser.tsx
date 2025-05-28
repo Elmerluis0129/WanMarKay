@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { auth } from '../../services/auth';
 import InputMask from 'react-input-mask';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
@@ -24,6 +25,7 @@ import { userService } from '../../services/userService';
 import { Navigation } from '../shared/Navigation';
 
 export const CreateUser: React.FC = () => {
+    const currentUser = auth.getCurrentUser();
     const [formData, setFormData] = useState({
         firstNames: '',
         lastNames: '',
@@ -35,6 +37,11 @@ export const CreateUser: React.FC = () => {
         phone: '',
         address: '',
     });
+
+    // Determinar los roles disponibles según el rol del usuario actual
+    const availableRoles = currentUser?.role === 'superadmin' 
+        ? ['superadmin', 'admin', 'client'] 
+        : ['admin', 'client'];
     const [cedulaError, setCedulaError] = useState<string>('');
     const [usernameTouched, setUsernameTouched] = useState(false);
     const [passwordTouched, setPasswordTouched] = useState(false);
@@ -88,7 +95,7 @@ export const CreateUser: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const allUsers = await userService.getUsers();
-        const normalize = (str: string) => str.replace(/\s+/g, '').toLowerCase();
+        const normalize = (str: string | undefined) => (str || '').replace(/\s+/g, '').toLowerCase();
         const fullName = `${formData.firstNames} ${formData.lastNames}`.trim();
         if (!formData.email) {
             setSnackbarMessage('El correo electrónico es obligatorio');
@@ -121,8 +128,8 @@ export const CreateUser: React.FC = () => {
             setSnackbarOpen(true);
             return;
         }
-        const cleanCedula = formData.cedula.replace(/-/g, '');
-        const cleanPhone = formData.phone.replace(/\D/g, '');
+        const cleanCedula = (formData.cedula || '').replace(/-/g, '');
+        const cleanPhone = (formData.phone || '').replace(/\D/g, '');
         const rdDate = dayjs().tz('America/Santo_Domingo').format('YYYY-MM-DD');
         const newUser: User = {
             id: uuidv4(),
@@ -254,7 +261,6 @@ export const CreateUser: React.FC = () => {
                                     <TextField
                                         {...maskProps}
                                         margin="normal"
-                                        required
                                         fullWidth
                                         name="phone"
                                         label="Teléfono"
@@ -268,15 +274,18 @@ export const CreateUser: React.FC = () => {
                                     label="Rol"
                                     onChange={handleRoleChange}
                                 >
-                                    <MenuItem value="client">Cliente</MenuItem>
+                                    {availableRoles.includes('superadmin') && (
+                                        <MenuItem value="superadmin">Super Administrador</MenuItem>
+                                    )}
                                     <MenuItem value="admin">Administrador</MenuItem>
+                                    <MenuItem value="client">Cliente</MenuItem>
                                 </Select>
                             </FormControl>
                             <Snackbar
                                 open={snackbarOpen}
                                 autoHideDuration={3000}
-                                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
                                 onClose={() => setSnackbarOpen(false)}
+                                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
                             >
                                 <Alert
                                     onClose={() => setSnackbarOpen(false)}

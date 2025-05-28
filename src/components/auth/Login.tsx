@@ -21,34 +21,82 @@ export const Login: React.FC = () => {
         e.preventDefault();
         setError('');
         try {
-            const user = await auth.login({ username, password });
+            const { user, error: authError } = await auth.login({ username, password });
+            
+            if (authError) {
+                setError(authError);
+                return;
+            }
+
             if (user) {
                 // Validar si debe cambiar contraseña
                 const mustChange = user.mustChangePassword;
                 let expired = false;
                 let reason = '';
+                
                 if (user.passwordChangedAt) {
                     const last = new Date(user.passwordChangedAt);
                     const now = new Date();
                     const diffDays = (now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24);
                     expired = diffDays > 30;
                 }
+                
                 if (mustChange) {
                     reason = 'first';
                 } else if (expired) {
                     reason = 'expired';
                 }
+                
                 if (mustChange || expired) {
                     navigate('/change-password', { state: { reason } });
                 } else {
-                    navigate(user.role === 'admin' ? '/admin' : '/client');
+                    // Redirigir según el rol
+                    if (user.role === 'superadmin') {
+                        navigate('/superadmin');
+                    } else if (user.role === 'admin') {
+                        navigate('/admin');
+                    } else {
+                        navigate('/client');
+                    }
                 }
-            } else {
-                setError('Credenciales inválidas');
             }
         } catch (err) {
-            setError('Error al autenticar');
+            console.error('Error en el inicio de sesión:', err);
+            setError('Ocurrió un error al intentar iniciar sesión');
         }
+    };
+
+    // Estilos comunes para los campos de texto
+    const textFieldStyles = {
+        '& .MuiOutlinedInput-root': {
+            '& fieldset': {
+                borderColor: '#E31C79',
+            },
+            '&:hover fieldset': {
+                borderColor: '#E31C79',
+            },
+            '&.Mui-focused fieldset': {
+                borderColor: '#E31C79',
+            },
+            '&:hover': {
+                boxShadow: '0 0 0 2px rgba(227,28,121,0.2)',
+            },
+        },
+        '& .MuiInputLabel-root': {
+            color: '#000',
+            '&.Mui-focused': {
+                color: '#E31C79',
+            },
+        },
+        '& .MuiInputBase-input': {
+            color: '#000',
+            '&::placeholder': {
+                color: '#666',
+                opacity: 1,
+            },
+        },
+        transition: 'box-shadow 0.3s',
+        marginBottom: 2,
     };
 
     return (
@@ -59,49 +107,47 @@ export const Login: React.FC = () => {
                 top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 0,
                 pointerEvents: 'none',
             }}>
-                <style>{`
-                @keyframes gradientMove {
-                    0% { background-position: 0% 50%; }
-                    50% { background-position: 100% 50%; }
-                    100% { background-position: 0% 50%; }
-                }
-                .animated-bg {
-                    position: absolute;
-                    width: 100vw;
-                    height: 100vh;
-                    background: linear-gradient(120deg, #fbeff7 0%, #f7e9f3 100%, #fff 100%);
-                    background-size: 200% 200%;
-                    animation: gradientMove 10s ease-in-out infinite;
-                    z-index: 0;
-                }
-                .bubble {
-                    position: absolute;
-                    border-radius: 50%;
-                    opacity: 0.15;
-                    background: #E31C79;
-                    animation: floatxy 3s infinite linear;
-                }
-                @keyframes floatxy {
-                    0% { transform: translate(0, 0) scale(1); }
-                    25% { transform: translate(20px, -20px) scale(1.07); }
-                    50% { transform: translate(-20px, -40px) scale(1.1); }
-                    75% { transform: translate(-10px, -20px) scale(1.05); }
-                    100% { transform: translate(0, 0) scale(1); }
-                }
-                `}</style>
+                <style>{
+                    `@keyframes gradientMove {
+                        0% { background-position: 0% 50%; }
+                        50% { background-position: 100% 50%; }
+                        100% { background-position: 0% 50%; }
+                    }
+                    .animated-bg {
+                        position: absolute;
+                        width: 100vw;
+                        height: 100vh;
+                        background: linear-gradient(120deg, #fbeff7 0%, #f7e9f3 100%, #fff 100%);
+                        background-size: 200% 200%;
+                        animation: gradientMove 10s ease-in-out infinite;
+                        z-index: 0;
+                    }
+                    .bubble {
+                        position: absolute;
+                        border-radius: 50%;
+                        opacity: 0.15;
+                        background: #E31C79;
+                        animation: floatxy 3s infinite linear;
+                    }
+                    @keyframes floatxy {
+                        0% { transform: translate(0, 0) scale(1); }
+                        25% { transform: translate(20px, -20px) scale(1.07); }
+                        50% { transform: translate(-20px, -40px) scale(1.1); }
+                        75% { transform: translate(-10px, -20px) scale(1.05); }
+                        100% { transform: translate(0, 0) scale(1); }
+                    }`
+                }</style>
                 <div className="animated-bg" />
                 <div className="bubble" style={{ width: 120, height: 120, left: '10%', top: '60%', animationDelay: '0s' }} />
                 <div className="bubble" style={{ width: 80, height: 80, left: '70%', top: '20%', animationDelay: '2s' }} />
                 <div className="bubble" style={{ width: 60, height: 60, left: '50%', top: '80%', animationDelay: '4s' }} />
                 <div className="bubble" style={{ width: 100, height: 100, left: '80%', top: '70%', animationDelay: '6s' }} />
-                {/* Más burbujas */}
                 <div className="bubble" style={{ width: 90, height: 90, left: '20%', top: '10%', animationDelay: '1s' }} />
                 <div className="bubble" style={{ width: 70, height: 70, left: '60%', top: '60%', animationDelay: '3s' }} />
                 <div className="bubble" style={{ width: 50, height: 50, left: '30%', top: '75%', animationDelay: '5s' }} />
                 <div className="bubble" style={{ width: 110, height: 110, left: '85%', top: '30%', animationDelay: '7s' }} />
                 <div className="bubble" style={{ width: 40, height: 40, left: '40%', top: '15%', animationDelay: '2.5s' }} />
                 <div className="bubble" style={{ width: 60, height: 60, left: '75%', top: '50%', animationDelay: '4.5s' }} />
-                {/* Aún más burbujas */}
                 <div className="bubble" style={{ width: 55, height: 55, left: '15%', top: '30%', animationDelay: '1.5s' }} />
                 <div className="bubble" style={{ width: 85, height: 85, left: '35%', top: '60%', animationDelay: '3.5s' }} />
                 <div className="bubble" style={{ width: 45, height: 45, left: '65%', top: '10%', animationDelay: '2.2s' }} />
@@ -111,7 +157,19 @@ export const Login: React.FC = () => {
                 <div className="bubble" style={{ width: 65, height: 65, left: '90%', top: '50%', animationDelay: '7.2s' }} />
                 <div className="bubble" style={{ width: 50, height: 50, left: '5%', top: '80%', animationDelay: '8s' }} />
             </Box>
-            <Container component="main" maxWidth="xs" sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', zIndex: 1 }}>
+
+            <Container 
+                component="main" 
+                maxWidth="xs" 
+                sx={{ 
+                    minHeight: '100vh', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    position: 'relative', 
+                    zIndex: 1 
+                }}
+            >
                 <Paper
                     elevation={6}
                     sx={{
@@ -124,6 +182,8 @@ export const Login: React.FC = () => {
                         boxShadow: '0 8px 32px 0 rgba(227,28,121,0.10)',
                         position: 'relative',
                         zIndex: 2,
+                        width: '100%',
+                        maxWidth: 400,
                     }}
                 >
                     {/* Mensaje de bienvenida animado */}
@@ -137,6 +197,7 @@ export const Login: React.FC = () => {
                             ¡Bienvenido!
                         </Typography>
                     </motion.div>
+
                     {/* Logo animado */}
                     <motion.div
                         initial={{ opacity: 0, scale: 0.7 }}
@@ -152,6 +213,7 @@ export const Login: React.FC = () => {
                     >
                         {/* Logo dinámico */}
                     </motion.div>
+
                     {/* Título animado */}
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
@@ -163,6 +225,7 @@ export const Login: React.FC = () => {
                             WanMarKay - Iniciar Sesión
                         </Typography>
                     </motion.div>
+
                     {/* Formulario animado */}
                     <motion.div
                         initial={{ opacity: 0, y: 30 }}
@@ -170,7 +233,7 @@ export const Login: React.FC = () => {
                         transition={{ duration: 0.8, delay: 0.4 }}
                         style={{ width: '100%' }}
                     >
-                        <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
+                        <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
                             <TextField
                                 margin="normal"
                                 required
@@ -182,17 +245,9 @@ export const Login: React.FC = () => {
                                 autoFocus
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
-                                InputLabelProps={{ shrink: true }}
-                                sx={{
-                                    transition: 'box-shadow 0.3s',
-                                    '& .MuiInputBase-root': {
-                                        transition: 'box-shadow 0.3s',
-                                    },
-                                    '& .MuiInputBase-root.Mui-focused': {
-                                        boxShadow: '0 0 0 3px #E31C7922',
-                                    },
-                                }}
+                                sx={textFieldStyles}
                             />
+
                             <TextField
                                 margin="normal"
                                 required
@@ -204,22 +259,15 @@ export const Login: React.FC = () => {
                                 autoComplete="current-password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                InputLabelProps={{ shrink: true }}
-                                sx={{
-                                    transition: 'box-shadow 0.3s',
-                                    '& .MuiInputBase-root': {
-                                        transition: 'box-shadow 0.3s',
-                                    },
-                                    '& .MuiInputBase-root.Mui-focused': {
-                                        boxShadow: '0 0 0 3px #E31C7922',
-                                    },
-                                }}
+                                sx={textFieldStyles}
                             />
+
                             {error && (
-                                <Typography color="error" sx={{ mt: 1 }}>
+                                <Typography color="error" sx={{ mt: 1, textAlign: 'center' }}>
                                     {error}
                                 </Typography>
                             )}
+
                             <Button
                                 type="submit"
                                 fullWidth
@@ -228,32 +276,25 @@ export const Login: React.FC = () => {
                                     mt: 3,
                                     mb: 2,
                                     backgroundColor: '#E31C79',
-                                    fontWeight: 600,
-                                    letterSpacing: 1,
-                                    fontSize: 18,
-                                    boxShadow: '0 2px 8px #E31C7922',
-                                    transition: 'transform 0.2s, box-shadow 0.2s',
                                     '&:hover': {
-                                        backgroundColor: '#C4156A',
-                                        transform: 'scale(1.04)',
-                                        boxShadow: '0 4px 16px #E31C7944',
-                                        animation: 'pulse 0.5s',
+                                        backgroundColor: '#C2185B',
                                     },
+                                    padding: '12px',
+                                    fontSize: '1rem',
+                                    fontWeight: 600,
+                                    textTransform: 'none',
+                                    borderRadius: '8px',
+                                    boxShadow: '0 4px 12px rgba(227, 28, 121, 0.2)',
                                 }}
                             >
                                 Iniciar Sesión
                             </Button>
-                            <style>{`
-                                @keyframes pulse {
-                                    0% { transform: scale(1); }
-                                    50% { transform: scale(1.08); }
-                                    100% { transform: scale(1); }
-                                }
-                            `}</style>
                         </Box>
                     </motion.div>
                 </Paper>
             </Container>
         </Box>
     );
-}; 
+};
+
+export default Login;

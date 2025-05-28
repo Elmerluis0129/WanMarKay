@@ -215,7 +215,7 @@ export const UserList: React.FC = () => {
                     >
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>{index + 1}</TableCell>
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.username, search)}</TableCell>
-                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.fullName, search)}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.fullName || user.full_name || '', search)}</TableCell>
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.email, search)}</TableCell>
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(user.role, search)}</TableCell>
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>{highlightText(formatCedula(user.cedula ?? ''), search)}</TableCell>

@@ -19,7 +19,7 @@ import { User } from '../../types/user';
 import { userService } from '../../services/userService';
 
 export const ReportsDashboard: React.FC = () => {
-  const [year, setYear] = useState<string>(new Date().getFullYear().toString());
+  const [year, setYear] = useState<string>('all');
   const [monthFilter, setMonthFilter] = useState<string>('all');
   const [statusFilters, setStatusFilters] = useState<Record<string, boolean>>({ paid: true, on_time: true, delayed: true });
   const [clientSearch, setClientSearch] = useState<string>('');
@@ -44,7 +44,7 @@ export const ReportsDashboard: React.FC = () => {
   });
 
   const resetFilters = () => {
-    setYear(new Date().getFullYear().toString());
+    setYear('all');
     setMonthFilter('all');
     setStatusFilters({ paid: true, on_time: true, delayed: true });
     setSelectedClient(null);
@@ -213,7 +213,7 @@ export const ReportsDashboard: React.FC = () => {
               size="small"
               sx={{ minWidth: 200 }}
               options={clientOptions}
-              getOptionLabel={option => option.fullName}
+              getOptionLabel={option => option.fullName || option.full_name || 'Cliente sin nombre'}
               filterOptions={(options: User[], state: any) => options}
               onInputChange={(e, value) => setClientSearch(value)}
               onChange={(e, value) => setSelectedClient(value)}
@@ -315,18 +315,6 @@ export const ReportsDashboard: React.FC = () => {
                 <YAxis />
                 <Tooltip />
                 <Bar dataKey="facturas" name="Facturas" fill="#2196F3" />
-              </BarChart>
-            </ResponsiveContainer>
-          </Box>
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="h6" gutterBottom>Pagos por mes</Typography>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={paymentsData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="pagos" name="Pagos" fill="#4CAF50" />
               </BarChart>
             </ResponsiveContainer>
           </Box>

@@ -35,6 +35,9 @@ import {
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
+import SaveIcon from '@mui/icons-material/Save';
+import CancelIcon from '@mui/icons-material/Cancel';
 import SearchIcon from '@mui/icons-material/Search';
 import { v4 as uuidv4 } from 'uuid';
 import { Invoice, InvoiceItem, PaymentPlan, User } from '../../types';
@@ -99,6 +102,9 @@ export const CreateInvoice: React.FC = () => {
         unitPrice: 0,
         total: 0,
     });
+    
+    const [editingIndex, setEditingIndex] = useState<number | null>(null);
+    const [editingItem, setEditingItem] = useState<InvoiceItem | null>(null);
 
     const [paymentType, setPaymentType] = useState<'cash' | 'credit'>('cash');
     const [paymentPlan, setPaymentPlan] = useState<Partial<PaymentPlan>>({
@@ -191,6 +197,29 @@ export const CreateInvoice: React.FC = () => {
         }
     };
 
+    const startEditing = (index: number) => {
+        setEditingIndex(index);
+        setEditingItem({...items[index]});
+    };
+
+    const saveEdit = () => {
+        if (editingIndex === null || !editingItem) return;
+        
+        const updatedItems = [...items];
+        // Recalcular el total
+        editingItem.total = editingItem.quantity * editingItem.unitPrice;
+        updatedItems[editingIndex] = editingItem;
+        
+        setItems(updatedItems);
+        setEditingIndex(null);
+        setEditingItem(null);
+    };
+
+    const cancelEdit = () => {
+        setEditingIndex(null);
+        setEditingItem(null);
+    };
+
     const removeItem = (index: number) => {
         setItems(items.filter((_, i) => i !== index));
     };
@@ -232,7 +261,7 @@ export const CreateInvoice: React.FC = () => {
                 id: uuidv4(),
                 invoiceNumber: formData.invoiceNumber,
                 date: isoDate,
-                clientName: selectedClient!.fullName,
+                clientName: selectedClient!.fullName || selectedClient!.full_name || 'Cliente sin nombre',
                 clientId: selectedClient!.id,
                 address: formData.address || undefined,
                 cedula: formData.cedula || undefined,
@@ -396,11 +425,11 @@ export const CreateInvoice: React.FC = () => {
                                         value={selectedClient}
                                         onChange={(_, newValue: User | null) => setSelectedClient(newValue)}
                                         options={availableClients}
-                                        getOptionLabel={opt => opt.fullName}
+                                        getOptionLabel={opt => opt.fullName || opt.full_name || 'Cliente sin nombre'}
                                         isOptionEqualToValue={(opt, val) => opt.id === val.id}
                                         filterOptions={(options, { inputValue }) =>
                                             options.filter(o =>
-                                                o.fullName.toLowerCase().includes(inputValue.toLowerCase())
+                                                (o.fullName || o.full_name || '').toLowerCase().includes(inputValue.toLowerCase())
                                             )
                                         }
                                         renderInput={params => (
@@ -487,39 +516,74 @@ export const CreateInvoice: React.FC = () => {
                                     fullWidth
                                     name="description"
                                     label="Descripción"
-                                    value={newItem.description}
-                                    onChange={handleItemChange}
+                                    value={editingIndex === null ? newItem.description : (editingItem?.description || '')}
+                                    onChange={editingIndex === null ? handleItemChange : (e) => setEditingItem(prev => prev ? {...prev, description: e.target.value} : null)}
                                 />
                                 <TextField
                                     type="number"
                                     name="quantity"
                                     label="Cantidad"
-                                    value={newItem.quantity}
+                                    value={editingIndex === null ? newItem.quantity : (editingItem?.quantity || 0)}
                                     onFocus={e => (e.target as HTMLInputElement).select()}
-                                    onChange={handleItemChange}
+                                    onChange={editingIndex === null ? 
+                                        handleItemChange : 
+                                        (e) => setEditingItem(prev => prev ? {...prev, quantity: Number(e.target.value)} : null)
+                                    }
                                     sx={{ width: '150px' }}
                                 />
                                 <TextField
                                     type="number"
                                     name="unitPrice"
                                     label="Precio Unitario"
-                                    value={newItem.unitPrice}
+                                    value={editingIndex === null ? newItem.unitPrice : (editingItem?.unitPrice || 0)}
                                     onFocus={e => (e.target as HTMLInputElement).select()}
-                                    onChange={handleItemChange}
+                                    onChange={editingIndex === null ? 
+                                        handleItemChange : 
+                                        (e) => setEditingItem(prev => prev ? {...prev, unitPrice: Number(e.target.value)} : null)
+                                    }
                                     sx={{ width: '150px' }}
                                 />
-                                <IconButton 
-                                    onClick={addItem}
-                                    sx={{ 
-                                        backgroundColor: '#E31C79',
-                                        color: 'white',
-                                        '&:hover': {
-                                            backgroundColor: '#C4156A',
-                                        },
-                                    }}
-                                >
-                                    <AddIcon />
-                                </IconButton>
+                                {editingIndex === null ? (
+                                    <IconButton 
+                                        onClick={addItem}
+                                        sx={{ 
+                                            backgroundColor: '#E31C79',
+                                            color: 'white',
+                                            '&:hover': {
+                                                backgroundColor: '#C4156A',
+                                            },
+                                        }}
+                                    >
+                                        <AddIcon />
+                                    </IconButton>
+                                ) : (
+                                    <>
+                                        <IconButton 
+                                            onClick={saveEdit}
+                                            sx={{ 
+                                                backgroundColor: '#4CAF50',
+                                                color: 'white',
+                                                '&:hover': {
+                                                    backgroundColor: '#388E3C',
+                                                },
+                                            }}
+                                        >
+                                            <SaveIcon />
+                                        </IconButton>
+                                        <IconButton 
+                                            onClick={cancelEdit}
+                                            sx={{ 
+                                                backgroundColor: '#f44336',
+                                                color: 'white',
+                                                '&:hover': {
+                                                    backgroundColor: '#d32f2f',
+                                                },
+                                            }}
+                                        >
+                                            <CancelIcon />
+                                        </IconButton>
+                                    </>
+                                )}
                             </Box>
 
                             <TableContainer>
@@ -536,23 +600,84 @@ export const CreateInvoice: React.FC = () => {
                                     <TableBody>
                                         {items.map((item, index) => (
                                             <TableRow key={index}>
-                                                <TableCell>{item.description}</TableCell>
-                                                <TableCell align="right">{item.quantity}</TableCell>
-                                                <TableCell align="right">
-                                                    RD$ {item.unitPrice.toFixed(2)}
-                                                </TableCell>
-                                                <TableCell align="right">
-                                                    RD$ {item.total.toFixed(2)}
-                                                </TableCell>
-                                                <TableCell align="center">
-                                                    <IconButton 
-                                                        onClick={() => removeItem(index)}
-                                                        color="error"
-                                                    >
-                                                        <DeleteIcon />
-                                                    </IconButton>
-                                                </TableCell>
-                                            </TableRow>
+                                            <TableCell>
+                                                {editingIndex === index ? (
+                                                    <TextField
+                                                        size="small"
+                                                        value={editingItem?.description || ''}
+                                                        onChange={(e) => setEditingItem(prev => prev ? {...prev, description: e.target.value} : null)}
+                                                    />
+                                                ) : (
+                                                    item.description
+                                                )}
+                                            </TableCell>
+                                            <TableCell align="right">
+                                                {editingIndex === index ? (
+                                                    <TextField
+                                                        size="small"
+                                                        type="number"
+                                                        value={editingItem?.quantity || 0}
+                                                        onChange={(e) => setEditingItem(prev => prev ? {...prev, quantity: Number(e.target.value)} : null)}
+                                                        sx={{ width: '80px' }}
+                                                    />
+                                                ) : (
+                                                    item.quantity
+                                                )}
+                                            </TableCell>
+                                            <TableCell align="right">
+                                                {editingIndex === index ? (
+                                                    <TextField
+                                                        size="small"
+                                                        type="number"
+                                                        value={editingItem?.unitPrice || 0}
+                                                        onChange={(e) => setEditingItem(prev => prev ? {...prev, unitPrice: Number(e.target.value)} : null)}
+                                                        sx={{ width: '100px' }}
+                                                    />
+                                                ) : (
+                                                    `RD$ ${item.unitPrice.toFixed(2)}`
+                                                )}
+                                            </TableCell>
+                                            <TableCell align="right">
+                                                RD$ {item.total.toFixed(2)}
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                {editingIndex === index ? (
+                                                    <>
+                                                        <IconButton 
+                                                            onClick={saveEdit}
+                                                            color="success"
+                                                            size="small"
+                                                        >
+                                                            <SaveIcon />
+                                                        </IconButton>
+                                                        <IconButton 
+                                                            onClick={cancelEdit}
+                                                            color="error"
+                                                            size="small"
+                                                        >
+                                                            <CancelIcon />
+                                                        </IconButton>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <IconButton 
+                                                            onClick={() => startEditing(index)}
+                                                            color="primary"
+                                                            size="small"
+                                                        >
+                                                            <EditIcon />
+                                                        </IconButton>
+                                                        <IconButton 
+                                                            onClick={() => removeItem(index)}
+                                                            color="error"
+                                                            size="small"
+                                                        >
+                                                            <DeleteIcon />
+                                                        </IconButton>
+                                                    </>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
                                         ))}
                                     </TableBody>
                                 </Table>

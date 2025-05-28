@@ -289,18 +289,8 @@ export const About: React.FC = () => {
             <Navigation />
             <Container maxWidth="lg" sx={{ py: 4 }}>
                 {/* Botones de Vista Previa y Edición */}
-                {isAdmin && !isPreviewMode && (
+                {auth.isSuperAdmin() && (
                     <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mb: 4 }}>
-                        {editMode && (
-                            <Button
-                                variant="contained"
-                                color="primary"
-                                startIcon={<VisibilityIcon />}
-                                onClick={() => setIsPreviewMode(true)}
-                            >
-                                Vista Previa
-                            </Button>
-                        )}
                         {!editMode && (
                             <Button
                                 variant="outlined"
@@ -311,40 +301,26 @@ export const About: React.FC = () => {
                                 Editar
                             </Button>
                         )}
-                    </Box>
-                )}
-                {isPreviewMode && (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', mb: 4 }}>
-                        <Button
-                            variant="contained"
-                            color="secondary"
-                            startIcon={<EditIcon />}
-                            onClick={() => setIsPreviewMode(false)}
-                        >
-                            Volver a Edición
-                        </Button>
-                    </Box>
-                )}
-                {editMode && !isPreviewMode && (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', mb: 4 }}>
-                        <Button
-                            variant="contained"
-                            color="primary"
-                            startIcon={<SaveIcon />}
-                            onClick={handleSave}
-                            sx={{ mx: 1 }}
-                        >
-                            Guardar
-                        </Button>
-                        <Button
-                            variant="outlined"
-                            color="secondary"
-                            startIcon={<CancelIcon />}
-                            onClick={handleCancel}
-                            sx={{ mx: 1 }}
-                        >
-                            Cancelar
-                        </Button>
+                        {editMode && (
+                            <>
+                                <Button
+                                    variant="contained"
+                                    color="primary"
+                                    startIcon={<SaveIcon />}
+                                    onClick={handleSave}
+                                >
+                                    Guardar
+                                </Button>
+                                <Button
+                                    variant="outlined"
+                                    color="secondary"
+                                    startIcon={<CancelIcon />}
+                                    onClick={handleCancel}
+                                >
+                                    Cancelar
+                                </Button>
+                            </>
+                        )}
                     </Box>
                 )}
                 {/* Logo grande y bonito */}

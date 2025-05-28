@@ -23,6 +23,7 @@ import About from '../components/shared/About';
 import { BankAccountsPage } from '../components/admin/BankAccountsPage';
 import ChangePassword from '../components/auth/ChangePassword';
 import LoyaltyProgram from '../components/shared/LoyaltyProgram';
+import SuperAdminDashboard from '../components/superadmin/SuperAdminDashboard';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -38,9 +39,17 @@ export const AppRoutes: React.FC = () => {
         } 
       />
       <Route
+        path="/superadmin"
+        element={
+          <PrivateRoute requireSuperAdmin>
+            <SuperAdminDashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/admin"
         element={
-          <PrivateRoute requireAdmin>
+          <PrivateRoute requireAdminOrSuperAdmin>
             <AdminDashboard />
           </PrivateRoute>
         }
@@ -48,7 +57,7 @@ export const AppRoutes: React.FC = () => {
       <Route
         path="/admin/invoice/create"
         element={
-          <PrivateRoute requireAdmin>
+          <PrivateRoute requireAdminOrSuperAdmin>
             <CreateInvoice />
           </PrivateRoute>
         }
@@ -56,7 +65,7 @@ export const AppRoutes: React.FC = () => {
       <Route
         path="/admin/payment/register"
         element={
-          <PrivateRoute requireAdmin>
+          <PrivateRoute requireAdminOrSuperAdmin>
             <RegisterPayment />
           </PrivateRoute>
         }
@@ -64,7 +73,7 @@ export const AppRoutes: React.FC = () => {
       <Route
         path="/admin/payment/list"
         element={
-          <PrivateRoute requireAdmin>
+          <PrivateRoute requireAdminOrSuperAdmin>
             <PaymentList />
           </PrivateRoute>
         }
@@ -72,7 +81,7 @@ export const AppRoutes: React.FC = () => {
       <Route
         path="/admin/reports"
         element={
-          <PrivateRoute requireAdmin>
+          <PrivateRoute requireAdminOrSuperAdmin>
             <ReportsDashboard />
           </PrivateRoute>
         }
@@ -80,7 +89,7 @@ export const AppRoutes: React.FC = () => {
       <Route
         path="/admin/user/create"
         element={
-          <PrivateRoute requireAdmin>
+          <PrivateRoute requireAdminOrSuperAdmin>
             <CreateUser />
           </PrivateRoute>
         }
@@ -88,8 +97,32 @@ export const AppRoutes: React.FC = () => {
       <Route
         path="/admin/user/list"
         element={
-          <PrivateRoute requireAdmin>
+          <PrivateRoute requireAdminOrSuperAdmin>
             <UserList />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/bank-accounts"
+        element={
+          <PrivateRoute requireAdminOrSuperAdmin>
+            <BankAccountsPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/bankaccounts"
+        element={
+          <PrivateRoute requireAdminOrSuperAdmin>
+            <BankAccountsPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/cuentas-bancarias"
+        element={
+          <PrivateRoute requireAdminOrSuperAdmin>
+            <BankAccountsPage />
           </PrivateRoute>
         }
       />
@@ -98,14 +131,6 @@ export const AppRoutes: React.FC = () => {
         element={
           <PrivateRoute>
             <ClientDashboard />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/cuentas-bancarias"
-        element={
-          <PrivateRoute>
-            <BankAccountsPage />
           </PrivateRoute>
         }
       />

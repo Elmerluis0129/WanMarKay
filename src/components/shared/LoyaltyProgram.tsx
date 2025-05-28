@@ -134,7 +134,7 @@ const loyaltyTiers: LoyaltyTier[] = [
 const LoyaltyProgram: React.FC = () => {
   const theme = useTheme();
   const [currentUser, setCurrentUser] = useState(auth.getCurrentUser());
-  const isAdmin = currentUser?.role === 'admin';
+  const hasAdminAccess = currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
 
   // Función para formatear el número de teléfono
   const formatPhoneNumber = (phone: string): string => {
@@ -303,12 +303,12 @@ const LoyaltyProgram: React.FC = () => {
 
   // Filtrar clientes según permisos
   const filteredCustomers = useMemo(() => {
-    if (isAdmin) {
+    if (hasAdminAccess) {
       return customersWithTiers;
     }
     // Mostrar solo el perfil del usuario actual si no es administrador
     return customersWithTiers.filter((customer: CustomerData) => customer.id === currentUser?.id);
-  }, [customersWithTiers, isAdmin, currentUser?.id]);
+  }, [customersWithTiers, hasAdminAccess, currentUser?.id]);
 
   // Prepare data for the pie chart
   const tierCounts = loyaltyTiers.map(tier => {
@@ -485,7 +485,7 @@ const LoyaltyProgram: React.FC = () => {
           </Card>
 
           {/* Customer List - Solo visible para administradores */}
-          {isAdmin && (
+          {hasAdminAccess && (
             <Card sx={{ mb: 4 }}>
               <CardContent>
                 <Typography variant="h5" sx={{ mt: 6, mb: 2 }}>Lista de Clientes</Typography>
