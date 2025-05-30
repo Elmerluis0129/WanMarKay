@@ -287,10 +287,21 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                                             startIcon={<PersonAddIcon />}
                                             onClick={() => navigate('/superadmin')}
                                             sx={{
-                                                '&:hover': {
-                                                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                                ...(isActive('/superadmin') ? {
+                                                    backgroundColor: theme.palette.mode === 'dark' ? theme.palette.primary.main : 'rgba(0, 0, 0, 0.08)',
+                                                    color: theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : theme.palette.text.primary,
+                                                    fontWeight: 'bold',
+                                                    '&:hover': {
+                                                        backgroundColor: theme.palette.mode === 'dark' ? theme.palette.primary.dark : 'rgba(0, 0, 0, 0.12)'
+                                                    },
+                                                    boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
                                                     transform: 'translateY(-2px)'
-                                                },
+                                                } : {
+                                                    '&:hover': {
+                                                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                                        transform: 'translateY(-2px)'
+                                                    }
+                                                }),
                                                 transition: 'all 0.2s ease-in-out',
                                                 mx: 0.5,
                                                 px: 2,

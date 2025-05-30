@@ -49,7 +49,9 @@ export const CreateUser: React.FC = () => {
     const [snackbarMessage, setSnackbarMessage] = useState('');
     const [snackbarSeverity, setSnackbarSeverity] = useState<'success'|'error'>('success');
     const [emailError, setEmailError] = useState<string>('');
+    const [nameError, setNameError] = useState<string>('');
 
+    // Validar cédula
     useEffect(() => {
         const clean = (s: string) => s.replace(/\D/g, '');
         const defaultClean = '11111111111'; // cedula default sin guiones
@@ -62,6 +64,29 @@ export const CreateUser: React.FC = () => {
           })
           .catch(() => setCedulaError(''));
     }, [formData.cedula]);
+
+    // Validar nombre completo
+    useEffect(() => {
+        const fullName = `${formData.firstNames} ${formData.lastNames}`.trim();
+        if (!fullName) { 
+            setNameError(''); 
+            return; 
+        }
+        
+        const normalize = (str: string) => str.toLowerCase().trim().replace(/\s+/g, ' ');
+        const currentNormalized = normalize(fullName);
+        
+        userService.getUsers()
+            .then(users => {
+                const exists = users.some(u => {
+                    const userName = u.fullName ?? u.full_name ?? '';
+                    const userNormalized = normalize(userName);
+                    return userNormalized === currentNormalized && u.id !== currentUser?.id;
+                });
+                setNameError(exists ? 'Ya existe un usuario con este nombre y apellido' : '');
+            })
+            .catch(() => setNameError(''));
+    }, [formData.firstNames, formData.lastNames]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -95,14 +120,16 @@ export const CreateUser: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const allUsers = await userService.getUsers();
-        const normalize = (str: string | undefined) => (str || '').replace(/\s+/g, '').toLowerCase();
+        const normalize = (str: string | undefined) => (str || '').trim().toLowerCase().replace(/\s+/g, ' ');
         const fullName = `${formData.firstNames} ${formData.lastNames}`.trim();
+        
         if (!formData.email) {
             setSnackbarMessage('El correo electrónico es obligatorio');
             setSnackbarSeverity('error');
             setSnackbarOpen(true);
             return;
         }
+        
         const emailRegex = /^[\w-.]+@[\w-]+\.[a-zA-Z]{2,}$/;
         if (!emailRegex.test(formData.email)) {
             setSnackbarMessage('Correo electrónico inválido');
@@ -110,8 +137,10 @@ export const CreateUser: React.FC = () => {
             setSnackbarOpen(true);
             return;
         }
-        if (allUsers.some(u => normalize(u.fullName) === normalize(fullName))) {
-            setSnackbarMessage('Ya existe un usuario con ese nombre');
+        
+        // Validar nombre duplicado (usando la validación en tiempo real)
+        if (nameError) {
+            setSnackbarMessage(nameError);
             setSnackbarSeverity('error');
             setSnackbarOpen(true);
             return;
@@ -220,6 +249,7 @@ export const CreateUser: React.FC = () => {
                                 required
                                 fullWidth
                                 name="lastNames"
+                                error={!!nameError}
                                 label="Apellido(s)"
                                 value={formData.lastNames}
                                 onChange={handleChange}

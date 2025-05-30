@@ -423,7 +423,7 @@ export const PaymentDetailsModal: React.FC<PaymentDetailsModalProps> = ({
         doc.setTextColor(0,0,0);
         doc.text('Banco Popular: 123-456789-0', 10, y); y += 5;
         doc.text('Banco Reservas: 987-654321-0', 10, y); y += 5;
-        doc.text('Titular: Carmen Trinidad Guzmán', 10, y); y += 8;
+        doc.text('Titular: [NOMBRE DE LA EMPRESA]', 10, y); y += 8;
 
         // Espacio para firma
         doc.setDrawColor(gray[0], gray[1], gray[2]);

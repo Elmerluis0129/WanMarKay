@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Box,
     Container,
@@ -104,6 +104,9 @@ export const CreateInvoice: React.FC = () => {
         total: 0,
     });
     
+    // Referencia para el campo de descripción
+    const descriptionInputRef = useRef<HTMLInputElement>(null);
+    
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [editingItem, setEditingItem] = useState<InvoiceItem | null>(null);
     const [showPaymentForm, setShowPaymentForm] = useState(false);
@@ -208,6 +211,12 @@ export const CreateInvoice: React.FC = () => {
                 unitPrice: 0,
                 total: 0,
             });
+            // Enfocar el campo de descripción después de agregar un ítem
+            setTimeout(() => {
+                if (descriptionInputRef.current) {
+                    descriptionInputRef.current.focus();
+                }
+            }, 0);
         }
     };
 
@@ -443,30 +452,47 @@ export const CreateInvoice: React.FC = () => {
         e.preventDefault();
         try {
             if (!formData.cedula) { 
-                setSnackbarMessage('La cédula es obligatoria'); setSnackbarSeverity('error'); setSnackbarOpen(true);
+                setSnackbarMessage('La cédula es obligatoria'); 
+                setSnackbarSeverity('error'); 
+                setSnackbarOpen(true);
                 return;
             }
             if (!formData.phone) { 
-                setSnackbarMessage('El teléfono es obligatorio'); setSnackbarSeverity('error'); setSnackbarOpen(true);
+                setSnackbarMessage('El teléfono es obligatorio'); 
+                setSnackbarSeverity('error'); 
+                setSnackbarOpen(true);
                 return;
             }
             if (items.length === 0) { 
-                setSnackbarMessage('Debe agregar al menos un producto'); setSnackbarSeverity('error'); setSnackbarOpen(true);
+                setSnackbarMessage('Debe agregar al menos un producto'); 
+                setSnackbarSeverity('error'); 
+                setSnackbarOpen(true);
                 return;
             }
             if (!formData.date) { 
-                setSnackbarMessage('La fecha es obligatoria'); setSnackbarSeverity('error'); setSnackbarOpen(true);
+                setSnackbarMessage('La fecha es obligatoria'); 
+                setSnackbarSeverity('error'); 
+                setSnackbarOpen(true);
                 return;
             }
             if (!formData.invoiceNumber) { 
-                setSnackbarMessage('El número de factura es obligatorio'); setSnackbarSeverity('error'); setSnackbarOpen(true);
+                setSnackbarMessage('El número de factura es obligatorio'); 
+                setSnackbarSeverity('error'); 
+                setSnackbarOpen(true);
                 return;
             }
             if (!selectedClient) { 
-                setSnackbarMessage('Por favor seleccione un cliente'); setSnackbarSeverity('error'); setSnackbarOpen(true);
+                setSnackbarMessage('Por favor seleccione un cliente'); 
+                setSnackbarSeverity('error'); 
+                setSnackbarOpen(true);
                 return;
             }
             await saveInvoice();
+            // Hacer scroll al inicio del formulario después de guardar exitosamente
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
         } catch (error: any) {
             console.error('Error al crear factura', error);
             const msg = error?.message || JSON.stringify(error);
@@ -637,6 +663,7 @@ export const CreateInvoice: React.FC = () => {
 
                             <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
                                 <TextField
+                                    inputRef={descriptionInputRef}
                                     fullWidth
                                     name="description"
                                     label="Descripción"
