@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useTheme } from '@mui/material/styles';
 import { auth } from '../../services/auth';
 import InputMask from 'react-input-mask';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
+import { User, UserRole } from '../../types/user'; // UserStatus no es necesario si no está definido
+import { userService } from '../../services/userService';
+import { Navigation } from '../shared/Navigation';
 import {
     Box,
     Container,
@@ -18,185 +22,256 @@ import {
     SelectChangeEvent,
     Snackbar,
     Alert,
+    InputAdornment,
 } from '@mui/material';
 import { v4 as uuidv4 } from 'uuid';
-import { User, UserRole } from '../../types/user';
-import { userService } from '../../services/userService';
-import { Navigation } from '../shared/Navigation';
 
-export const CreateUser: React.FC = () => {
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+interface FormErrors {
+    cedula?: string;
+    email?: string;
+}
+
+interface UserFormData {
+    firstName: string;
+    lastName: string;
+    username: string;
+    password: string;
+    email: string;
+    role: UserRole;
+    cedula: string;
+    phone: string;
+    address: string;
+}
+
+const CreateUser: React.FC = () => {
+    const theme = useTheme();
     const currentUser = auth.getCurrentUser();
-    const [formData, setFormData] = useState({
-        firstNames: '',
-        lastNames: '',
+    
+    // Estados
+    const [formData, setFormData] = useState<UserFormData>({
+        firstName: '',
+        lastName: '',
         username: '',
         password: '',
-        email: '',
-        role: 'client' as UserRole,
+        email: 'pendiente@actualizar.com',
+        role: 'client',
         cedula: '',
         phone: '',
-        address: '',
+        address: 'Pendiente de actualizar',
+    });
+    
+    type SnackbarSeverity = 'success' | 'error' | 'info' | 'warning';
+    
+    const [snackbar, setSnackbar] = useState<{
+        open: boolean;
+        message: string;
+        severity: SnackbarSeverity;
+    }>({
+        open: false,
+        message: '',
+        severity: 'info'
     });
 
-    // Determinar los roles disponibles según el rol del usuario actual
-    const availableRoles = currentUser?.role === 'superadmin' 
-        ? ['superadmin', 'admin', 'client'] 
-        : ['admin', 'client'];
-    const [cedulaError, setCedulaError] = useState<string>('');
-    const [usernameTouched, setUsernameTouched] = useState(false);
-    const [passwordTouched, setPasswordTouched] = useState(false);
-    const [snackbarOpen, setSnackbarOpen] = useState(false);
-    const [snackbarMessage, setSnackbarMessage] = useState('');
-    const [snackbarSeverity, setSnackbarSeverity] = useState<'success'|'error'>('success');
-    const [emailError, setEmailError] = useState<string>('');
-    const [nameError, setNameError] = useState<string>('');
+    const [formErrors, setFormErrors] = useState<FormErrors>({});
 
     // Validar cédula
-    useEffect(() => {
-        const clean = (s: string) => s.replace(/\D/g, '');
-        const defaultClean = '11111111111'; // cedula default sin guiones
-        const current = clean(formData.cedula || '');
-        if (!current || current === defaultClean) { setCedulaError(''); return; }
-        userService.getUsers()
-          .then(users => {
-            const exists = users.some(u => u.cedula?.replace(/\D/g,'') === current);
-            setCedulaError(exists ? 'Ya existe un usuario con esta cédula' : '');
-          })
-          .catch(() => setCedulaError(''));
-    }, [formData.cedula]);
+    const validateCedula = (cedula: string): boolean => {
+        // Formato: 000-0000000-0 o 00000000000
+        const cedulaRegex = /^\d{3}-?\d{7}-?\d$/;
+        return cedulaRegex.test(cedula);
+    };
 
-    // Validar nombre completo
+    // Validar email
+    const validateEmail = (email: string): boolean => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    };
+
+    // Generar automáticamente usuario, contraseña y correo cuando cambian los nombres
     useEffect(() => {
-        const fullName = `${formData.firstNames} ${formData.lastNames}`.trim();
-        if (!fullName) { 
-            setNameError(''); 
-            return; 
+        if (formData.firstName && formData.lastName) {
+            // Limpiar espacios de los nombres
+            const cleanFirstName = formData.firstName.toLowerCase().replace(/\s+/g, '').trim();
+            const cleanLastName = formData.lastName.toLowerCase().replace(/\s+/g, '').trim();
+            
+            // Generar usuario: nombre en minúsculas (sin espacios) + primera letra del apellido en mayúscula
+            const firstLetterLastName = cleanLastName.charAt(0).toUpperCase();
+            const username = `${cleanFirstName}${firstLetterLastName}`;
+            
+            // Generar contraseña: usuario + 123
+            const password = `${username}123`;
+            
+            // Generar correo: nombre + apellido (sin espacios) + @actualizar.com
+            const email = `${cleanFirstName}${cleanLastName}@actualizar.com`;
+
+            setFormData((prev: UserFormData) => ({
+                ...prev,
+                username,
+                password,
+                email
+            }));
         }
-        
-        const normalize = (str: string) => str.toLowerCase().trim().replace(/\s+/g, ' ');
-        const currentNormalized = normalize(fullName);
-        
-        userService.getUsers()
-            .then(users => {
-                const exists = users.some(u => {
-                    const userName = u.fullName ?? u.full_name ?? '';
-                    const userNormalized = normalize(userName);
-                    return userNormalized === currentNormalized && u.id !== currentUser?.id;
-                });
-                setNameError(exists ? 'Ya existe un usuario con este nombre y apellido' : '');
-            })
-            .catch(() => setNameError(''));
-    }, [formData.firstNames, formData.lastNames]);
+    }, [formData.firstName, formData.lastName]);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => {
-            const newData = { ...prev, [name]: value } as any;
-            if (name === 'firstNames' || name === 'lastNames') {
-                const first = newData.firstNames.trim().split(' ')[0] || '';
-                const initial = newData.lastNames.trim().split(' ')[0]?.[0] || '';
-                const autoUser = `${first.toLowerCase()}${initial.toUpperCase()}`;
-                if (!usernameTouched) newData.username = autoUser;
-                if (!passwordTouched) newData.password = autoUser + '123';
+    // Validar en tiempo real
+    const validateField = (name: string, value: string) => {
+        if (name === 'cedula') {
+            if (value && !validateCedula(value)) {
+                setFormErrors((prev: FormErrors) => ({ ...prev, cedula: 'Si no tiene una cédula, Use: 111-1111111-1' }));
+            } else {
+                const { cedula, ...rest } = formErrors;
+                setFormErrors(rest);
             }
-            return newData;
-        });
-        if (name === 'username') setUsernameTouched(true);
-        if (name === 'password') setPasswordTouched(true);
-        if (name === 'email') {
-            // Validar formato de email
-            const emailRegex = /^[\w-.]+@[\w-]+\.[a-zA-Z]{2,}$/;
-            setEmailError(!value ? 'El correo es obligatorio' : (!emailRegex.test(value) ? 'Correo inválido' : ''));
+        } else if (name === 'email') {
+            if (value && value !== 'pendiente@actualizar.com' && !validateEmail(value)) {
+                setFormErrors((prev: FormErrors) => ({ ...prev, email: 'Formato de correo electrónico inválido' }));
+            } else {
+                const { email, ...rest } = formErrors;
+                setFormErrors(rest);
+            }
         }
     };
 
-    const handleRoleChange = (e: SelectChangeEvent) => {
-        setFormData({
-            ...formData,
-            role: e.target.value as UserRole,
-        });
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+        const { name, value } = e.target;
+        if (name) {
+            setFormData((prev: UserFormData) => ({
+                ...prev,
+                [name]: value
+            }));
+            
+            // Validar en tiempo real
+            if (name === 'cedula' || name === 'email') {
+                validateField(name, value as string);
+            }
+        }
+    };
+
+    const handleRoleChange = (e: SelectChangeEvent<UserRole>) => {
+        setFormData((prev: UserFormData) => ({
+            ...prev,
+            role: e.target.value as UserRole
+        }));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const allUsers = await userService.getUsers();
-        const normalize = (str: string | undefined) => (str || '').trim().toLowerCase().replace(/\s+/g, ' ');
-        const fullName = `${formData.firstNames} ${formData.lastNames}`.trim();
         
-        if (!formData.email) {
-            setSnackbarMessage('El correo electrónico es obligatorio');
-            setSnackbarSeverity('error');
-            setSnackbarOpen(true);
-            return;
-        }
-        
-        const emailRegex = /^[\w-.]+@[\w-]+\.[a-zA-Z]{2,}$/;
-        if (!emailRegex.test(formData.email)) {
-            setSnackbarMessage('Correo electrónico inválido');
-            setSnackbarSeverity('error');
-            setSnackbarOpen(true);
+        // Validar campos requeridos
+        if (!formData.cedula || !formData.phone) {
+            setSnackbar({
+                open: true,
+                message: 'Por favor complete todos los campos requeridos',
+                severity: 'error'
+            });
             return;
         }
         
-        // Validar nombre duplicado (usando la validación en tiempo real)
-        if (nameError) {
-            setSnackbarMessage(nameError);
-            setSnackbarSeverity('error');
-            setSnackbarOpen(true);
+        // Validar formato de cédula
+        if (!validateCedula(formData.cedula)) {
+            setFormErrors(prev => ({ ...prev, cedula: 'Formato de cédula inválido. Use: 000-0000000-0' }));
             return;
         }
-        if (allUsers.some(u => normalize(u.username) === normalize(formData.username))) {
-            setSnackbarMessage('El nombre de usuario ya está en uso');
-            setSnackbarSeverity('error');
-            setSnackbarOpen(true);
+        
+        // Validar formato de correo (si no es el predeterminado)
+        if (formData.email !== 'pendiente@actualizar.com' && !validateEmail(formData.email)) {
+            setFormErrors(prev => ({ ...prev, email: 'Formato de correo electrónico inválido' }));
             return;
         }
-        if (allUsers.some(u => u.email === formData.email)) {
-            setSnackbarMessage('El correo electrónico ya está en uso');
-            setSnackbarSeverity('error');
-            setSnackbarOpen(true);
-            return;
-        }
-        const cleanCedula = (formData.cedula || '').replace(/-/g, '');
-        const cleanPhone = (formData.phone || '').replace(/\D/g, '');
-        const rdDate = dayjs().tz('America/Santo_Domingo').format('YYYY-MM-DD');
-        const newUser: User = {
-            id: uuidv4(),
-            fullName,
-            username: formData.username,
-            password: formData.password,
-            email: formData.email,
-            role: formData.role,
-            cedula: cleanCedula,
-            phone: cleanPhone,
-            address: formData.address,
-            mustChangePassword: true,
-            passwordHistory: [],
-            passwordChangedAt: rdDate,
-            createdAt: rdDate // Usamos la misma fecha para created_at
-        };
-
+        
         try {
-            await userService.addUser(newUser);
-            setSnackbarMessage(`Usuario "${newUser.username}" creado exitosamente`);
-            setSnackbarSeverity('success');
-            setSnackbarOpen(true);
+            const allUsers = await userService.getUsers();
+            const fullName = `${formData.firstName} ${formData.lastName}`.trim();
+            const cleanCedula = (formData.cedula || '').replace(/[^0-9]/g, '');
+            
+            // Validar cédula duplicada (permitir múltiples con 11111111111)
+            if (cleanCedula !== '11111111111') {
+                const cedulaExists = allUsers.some(u => {
+                    const userCedula = u.cedula?.replace(/[^0-9]/g, '');
+                    return userCedula === cleanCedula;
+                });
+
+                if (cedulaExists) {
+                    setSnackbar({
+                        open: true,
+                        message: 'Ya existe un usuario con este número de cédula',
+                        severity: 'error'
+                    });
+                    return;
+                }
+            }
+            
+            // Validar nombre duplicado
+            const existingUser = allUsers.find(u => {
+                return u.email?.toLowerCase() === formData.email.toLowerCase() || 
+                       u.fullName?.toLowerCase() === fullName.toLowerCase();
+            });
+
+            if (existingUser) {
+                const message = existingUser.email?.toLowerCase() === formData.email.toLowerCase()
+                    ? 'Ya existe un usuario con este correo electrónico'
+                    : 'Ya existe un usuario con este nombre y apellido';
+                    
+                setSnackbar({
+                    open: true,
+                    message,
+                    severity: 'error'
+                });
+                return;
+            }
+
+            // Crear el nuevo usuario
+            const cleanPhone = (formData.phone || '').replace(/\D/g, '');
+            
+            const userData: User = {
+                ...formData,
+                id: uuidv4(),
+                fullName: `${formData.firstName} ${formData.lastName}`.trim(),
+                mustChangePassword: true,
+                isActive: true,
+                createdAt: new Date().toISOString(),
+                passwordHistory: []
+            };
+
+            await userService.addUser(userData);
+            
+            setSnackbar({
+                open: true,
+                message: `Usuario "${userData.username}" creado exitosamente`,
+                severity: 'success'
+            });
+            
+            // Resetear formulario
             setFormData({
-                firstNames: '',
-                lastNames: '',
+                firstName: '',
+                lastName: '',
                 username: '',
                 password: '',
-                email: '',
+                email: 'pendiente@actualizar.com',
                 role: 'client',
                 cedula: '',
                 phone: '',
-                address: '',
+                address: 'Pendiente de actualizar',
             });
+            
         } catch (error) {
-            setSnackbarMessage('Error al crear el usuario');
-            setSnackbarSeverity('error');
-            setSnackbarOpen(true);
+            console.error('Error al crear el usuario:', error);
+            setSnackbar({
+                open: true,
+                message: 'Error al crear el usuario',
+                severity: 'error'
+            });
         }
+    };
+
+    const handleCloseSnackbar = () => {
+        setSnackbar(prev => ({
+            ...prev,
+            open: false
+        }));
     };
 
     return (
@@ -219,133 +294,147 @@ export const CreateUser: React.FC = () => {
                             borderRadius: 2,
                         }}
                     >
-                        <Typography component="h1" variant="h5" sx={{ color: '#E31C79', mb: 3 }}>
+                        <Typography component="h1" variant="h5" sx={{ color: 'primary.main', mb: 3, textAlign: 'center' }}>
                             Crear Nuevo Usuario
                         </Typography>
                         <Box component="form" onSubmit={handleSubmit}>
-                            <TextField
-                                margin="normal"
-                                required
-                                fullWidth
-                                name="firstNames"
-                                label="Nombre(s)"
-                                value={formData.firstNames}
-                                onChange={handleChange}
-                            />
-                            <TextField
-                                margin="normal"
-                                required
-                                fullWidth
-                                name="email"
-                                label="Correo electrónico"
-                                value={formData.email}
-                                onChange={handleChange}
-                                error={Boolean(emailError)}
-                                helperText={emailError || 'Ejemplo: usuario@email.com'}
-                                type="email"
-                            />
-                            <TextField
-                                margin="normal"
-                                required
-                                fullWidth
-                                name="lastNames"
-                                error={!!nameError}
-                                label="Apellido(s)"
-                                value={formData.lastNames}
-                                onChange={handleChange}
-                            />
-                            <TextField
-                                margin="normal"
-                                fullWidth
-                                name="address"
-                                label="Dirección/Referencia"
-                                value={formData.address}
-                                onChange={handleChange}
-                            />
-                            <InputMask
-                                mask="999-9999999-9"
-                                value={formData.cedula}
-                                onChange={handleChange}
-                                maskChar=""
-                            >
-                                {(maskProps: any) => (
-                                    <TextField
-                                        {...maskProps}
-                                        margin="normal"
-                                        required
-                                        fullWidth
-                                        name="cedula"
-                                        label="Cédula"
-                                        error={Boolean(cedulaError)}
-                                        helperText={cedulaError || 'Formato: 000-0000000-0'}
-                                    />
-                                )}
-                            </InputMask>
-                            <InputMask
-                                mask="+1 (999) 999-9999"
-                                value={formData.phone}
-                                onChange={handleChange}
-                                maskChar=""
-                            >
-                                {(maskProps: any) => (
-                                    <TextField
-                                        {...maskProps}
-                                        margin="normal"
-                                        fullWidth
-                                        name="phone"
-                                        label="Teléfono"
-                                    />
-                                )}
-                            </InputMask>
-                            <FormControl fullWidth margin="normal">
-                                <InputLabel>Rol</InputLabel>
-                                <Select
-                                    value={formData.role}
-                                    label="Rol"
-                                    onChange={handleRoleChange}
-                                >
-                                    {availableRoles.includes('superadmin') && (
-                                        <MenuItem value="superadmin">Super Administrador</MenuItem>
-                                    )}
-                                    <MenuItem value="admin">Administrador</MenuItem>
-                                    <MenuItem value="client">Cliente</MenuItem>
-                                </Select>
-                            </FormControl>
-                            <Snackbar
-                                open={snackbarOpen}
-                                autoHideDuration={3000}
-                                onClose={() => setSnackbarOpen(false)}
-                                anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-                            >
-                                <Alert
-                                    onClose={() => setSnackbarOpen(false)}
-                                    severity={snackbarSeverity}
-                                    elevation={6}
-                                    variant="filled"
-                                >
-                                    {snackbarMessage}
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+                                <Alert severity="info" sx={{ mb: 2 }}>
+                                    El usuario deberá actualizar su correo electrónico al iniciar sesión por primera vez.
                                 </Alert>
-                            </Snackbar>
-                            <Button
-                                type="submit"
-                                fullWidth
-                                variant="contained"
-                                disabled={Boolean(cedulaError)}
-                                sx={{
-                                    mt: 3,
-                                    mb: 2,
-                                    backgroundColor: '#E31C79',
-                                    '&:hover': {
-                                        backgroundColor: '#C4156A',
-                                    },
-                                }}
-                            >
-                                Crear Usuario
-                            </Button>
+                                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                                    <Box sx={{ flex: 1, minWidth: 200 }}>
+                                        <TextField
+                                            margin="normal"
+                                            required
+                                            fullWidth
+                                            name="firstName"
+                                            label="Nombres"
+                                            value={formData.firstName}
+                                            onChange={handleChange}
+                                        />
+                                    </Box>
+                                    <Box sx={{ flex: 1, minWidth: 200 }}>
+                                        <TextField
+                                            margin="normal"
+                                            required
+                                            fullWidth
+                                            name="lastName"
+                                            label="Apellidos"
+                                            value={formData.lastName}
+                                            onChange={handleChange}
+                                        />
+                                    </Box>
+                                </Box>
+                                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                                    <Box sx={{ flex: 1, minWidth: 200 }}>
+                                        <InputMask
+                                            mask="999-9999999-9"
+                                            value={formData.cedula}
+                                            onChange={handleChange}
+                                        >
+                                            {(maskProps: any) => (
+                                                <TextField
+                                                    {...maskProps}
+                                                    margin="normal"
+                                                    fullWidth
+                                                    name="cedula"
+                                                    label="Cédula"
+                                                    required
+                                                    error={!!formErrors.cedula}
+                                                    helperText={formErrors.cedula}
+                                                />
+                                            )}
+                                        </InputMask>
+                                    </Box>
+                                    <Box sx={{ flex: 1, minWidth: 200 }}>
+                                        <InputMask
+                                            mask="+1 (999) 999-9999"
+                                            value={formData.phone}
+                                            onChange={handleChange}
+                                        >
+                                            {(maskProps: any) => (
+                                                <TextField
+                                                    {...maskProps}
+                                                    margin="normal"
+                                                    fullWidth
+                                                    name="phone"
+                                                    label="Teléfono"
+                                                    required
+                                                />
+                                            )}
+                                        </InputMask>
+                                    </Box>
+                                </Box>
+                                <Box sx={{ width: '100%', maxWidth: 400 }}>
+                                    <FormControl fullWidth margin="normal" required>
+                                        <InputLabel>Rol</InputLabel>
+                                        <Select
+                                            value={formData.role}
+                                            onChange={handleRoleChange}
+                                            name="role"
+                                            label="Rol"
+                                        >
+                                            {currentUser?.role === 'superadmin' && (
+                                                <MenuItem value="superadmin">Super Administrador</MenuItem>
+                                            )}
+                                            <MenuItem value="admin">Administrador</MenuItem>
+                                            <MenuItem value="client">Cliente</MenuItem>
+                                        </Select>
+                                    </FormControl>
+                                </Box>
+                                {/* Dirección se establece automáticamente como 'Pendiente de actualizar' */}
+                                <input type="hidden" name="address" value={formData.address} />
+                                <Box sx={{
+                                    mt: 2,
+                                    p: 2,
+                                    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+                                    borderRadius: 1,
+                                    border: `1px solid ${theme.palette.divider}`
+                                }}>
+                                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                                        Credenciales generadas automáticamente:
+                                    </Typography>
+                                    <Box sx={{ mt: 1 }}>
+                                        <Typography variant="body2" color="text.primary">
+                                            <Box component="span" sx={{ color: 'text.secondary', mr: 1, minWidth: 80, display: 'inline-block' }}>Usuario:</Box>
+                                            {formData.username || 'Ingrese nombre y apellido'}
+                                        </Typography>
+                                        <Typography variant="body2" color="text.primary">
+                                            <Box component="span" sx={{ color: 'text.secondary', mr: 1, minWidth: 80, display: 'inline-block' }}>Correo:</Box>
+                                            {formData.email || 'Se generará automáticamente'}
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                                <Button
+                                    type="submit"
+                                    variant="contained"
+                                    color="primary"
+                                    fullWidth
+                                    sx={{ mt: 3, mb: 2 }}
+                                >
+                                    Crear Usuario
+                                </Button>
+                            </Box>
                         </Box>
                     </Paper>
                 </Box>
             </Container>
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={6000}
+                onClose={handleCloseSnackbar}
+            >
+                <Alert 
+                    onClose={handleCloseSnackbar} 
+                    severity={snackbar.severity}
+                    sx={{ width: '100%' }}
+                >
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </>
     );
-}; 
+};
+
+export { CreateUser };

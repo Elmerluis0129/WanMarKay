@@ -134,9 +134,51 @@ export const CreateInvoice: React.FC = () => {
     // Feedback con Snackbar
     const [snackbarOpen, setSnackbarOpen] = useState(false);
     const [snackbarMessage, setSnackbarMessage] = useState('');
-    const [snackbarSeverity, setSnackbarSeverity] = useState<'success'|'error'>('success');
+    const [snackbarSeverity, setSnackbarSeverity] = useState<'success'|'error'|'info'>('success');
 
     const [invoiceNumberError, setInvoiceNumberError] = useState<string>('');
+
+    // Función para limpiar el formulario
+    const clearForm = () => {
+        setFormData({
+            invoiceNumber: '',
+            date: new Date().toISOString().split('T')[0],
+            address: '',
+            cedula: '',
+            phone: ''
+        });
+        setSelectedClient(null);
+        setItems([]);
+        setNewItem({
+            description: '',
+            quantity: 1,
+            unitPrice: 0,
+            total: 0,
+        });
+        setApplyDiscount(false);
+        setDiscountType('percentage');
+        setDiscountValue(0);
+        setPaymentType('cash');
+        setPaymentPlan({
+            frequency: 'biweekly',
+            totalInstallments: 1,
+            installmentAmount: 0,
+            startDate: new Date().toISOString().split('T')[0],
+        });
+        setPayments([]);
+        setShowPaymentForm(false);
+        setCurrentPayment({
+            amount: 0,
+            date: new Date().toISOString().split('T')[0],
+            method: 'cash',
+            reference: ''
+        });
+        
+        // Mostrar mensaje de confirmación
+        setSnackbarMessage('Formulario limpiado correctamente');
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+    };
 
     // Cargar la lista de clientes al montar el componente
     useEffect(() => {
@@ -162,6 +204,13 @@ export const CreateInvoice: React.FC = () => {
             }));
         }
     }, [selectedClient]);
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        // Prevenir el envío del formulario al presionar Enter
+        if (e.key === 'Enter') {
+            e.preventDefault();
+        }
+    };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({
@@ -265,6 +314,30 @@ export const CreateInvoice: React.FC = () => {
         return { subtotal, discountAmt, total, totalPaid, remaining };
     };
 
+    const handlePaymentAmountChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const newAmount = parseFloat(e.target.value) || 0;
+        const { remaining } = calculateTotal();
+        
+        if (newAmount > remaining) {
+            // Si el monto es mayor al pendiente, mostramos un mensaje y ajustamos el valor
+            setSnackbarMessage(`Monto ajustado al saldo pendiente de RD$ ${remaining.toFixed(2)}`);
+            setSnackbarSeverity('info');
+            setSnackbarOpen(true);
+            
+            // Actualizamos el monto al pendiente
+            setCurrentPayment({
+                ...currentPayment,
+                amount: remaining
+            });
+        } else {
+            // Si el monto es válido, lo actualizamos normalmente
+            setCurrentPayment({
+                ...currentPayment,
+                amount: newAmount
+            });
+        }
+    };
+
     const handleAddPayment = () => {
         if (currentPayment.amount <= 0) {
             setSnackbarMessage('El monto del pago debe ser mayor a 0');
@@ -273,14 +346,15 @@ export const CreateInvoice: React.FC = () => {
             return;
         }
         
-        const { total } = calculateTotal();
-        const currentTotalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+        const { remaining } = calculateTotal();
         
-        if (currentTotalPaid + currentPayment.amount > total) {
-            setSnackbarMessage('El monto total de los pagos no puede exceder el total de la factura');
-            setSnackbarSeverity('error');
-            setSnackbarOpen(true);
-            return;
+        // Verificar nuevamente por si acaso (aunque ya debería estar validado)
+        if (currentPayment.amount > remaining) {
+            setCurrentPayment({
+                ...currentPayment,
+                amount: remaining
+            });
+            return; // No debería llegar aquí si la validación del campo está funcionando
         }
         
         setPayments([...payments, { ...currentPayment }]);
@@ -425,8 +499,12 @@ export const CreateInvoice: React.FC = () => {
                 }
             }
 
-            // Mostrar mensaje de éxito
-            setSnackbarMessage('Factura y pagos registrados exitosamente');
+            // Mostrar mensaje de éxito específico según si hay pagos o no
+            if (payments.length > 0) {
+                setSnackbarMessage('¡Factura y pagos registrados exitosamente!');
+            } else {
+                setSnackbarMessage('¡Factura creada exitosamente!');
+            }
             setSnackbarSeverity('success');
             setSnackbarOpen(true);
             
@@ -537,7 +615,16 @@ export const CreateInvoice: React.FC = () => {
                             Si el cliente no existe, por favor créelo primero en la sección "Crear Usuario".
                         </Alert>
 
-                        <Box component="form" onSubmit={handleSubmit}>
+                        <Box 
+                            component="form" 
+                            onSubmit={handleSubmit}
+                            onKeyDown={(e) => {
+                                // Prevenir el envío del formulario al presionar Enter
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                }
+                            }}
+                        >
                             {/* Solo No. Factura, los datos del cliente se autocompletan */}
                             <Grid container spacing={2} sx={{ mb: 3 }}>
                                 <Grid item xs={12} md={4}>
@@ -977,9 +1064,26 @@ export const CreateInvoice: React.FC = () => {
                                                     type="number"
                                                     label="Monto"
                                                     value={currentPayment.amount || ''}
-                                                    onChange={(e) => setCurrentPayment({...currentPayment, amount: parseFloat(e.target.value) || 0})}
+                                                    onChange={handlePaymentAmountChange}
+                                                    onBlur={(e) => {
+                                                        const target = e.target as HTMLInputElement;
+                                                        const newAmount = parseFloat(target.value) || 0;
+                                                        const { remaining } = calculateTotal();
+                                                        
+                                                        if (newAmount > remaining) {
+                                                            setCurrentPayment({
+                                                                ...currentPayment,
+                                                                amount: remaining
+                                                            });
+                                                        }
+                                                    }}
                                                     InputProps={{
                                                         startAdornment: <InputAdornment position="start">RD$</InputAdornment>,
+                                                    }}
+                                                    inputProps={{
+                                                        min: 0,
+                                                        step: '0.01',
+                                                        max: calculateTotal().remaining
                                                     }}
                                                 />
                                             </Grid>
@@ -1084,21 +1188,38 @@ export const CreateInvoice: React.FC = () => {
                                 </Box>
                             </Box>
 
-                            <Button
-                                type="submit"
-                                fullWidth
-                                variant="contained"
-                                disabled={Boolean(invoiceNumberError)}
-                                sx={{
-                                    mt: 3,
-                                    backgroundColor: '#E31C79',
-                                    '&:hover': {
-                                        backgroundColor: '#C4156A',
-                                    },
-                                }}
-                            >
-                                {calculateTotal().remaining <= 0 ? 'Factura Pagada' : 'Crear Factura'}
-                            </Button>
+                            <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
+                                <Button
+                                    type="button"
+                                    variant="outlined"
+                                    onClick={clearForm}
+                                    sx={{
+                                        flex: 1,
+                                        color: '#E31C79',
+                                        borderColor: '#E31C79',
+                                        '&:hover': {
+                                            borderColor: '#C4156A',
+                                            backgroundColor: 'rgba(227, 28, 121, 0.04)',
+                                        },
+                                    }}
+                                >
+                                    Limpiar Factura
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    variant="contained"
+                                    disabled={Boolean(invoiceNumberError)}
+                                    sx={{
+                                        flex: 1,
+                                        backgroundColor: '#E31C79',
+                                        '&:hover': {
+                                            backgroundColor: '#C4156A',
+                                        },
+                                    }}
+                                >
+                                    {payments.length > 0 ? 'Crear Factura y Registrar Pago' : 'Crear Factura'}
+                                </Button>
+                            </Box>
                         </Box>
                     </Paper>
                 </Box>
