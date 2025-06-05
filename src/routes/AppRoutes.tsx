@@ -8,6 +8,7 @@ import { CreateUser } from '../components/admin/CreateUser';
 import { RegisterPayment } from '../components/admin/RegisterPayment';
 import { PaymentList } from '../components/admin/PaymentList';
 import { PrivateRoute } from '../components/auth/PrivateRoute';
+import { ProtectedRoute } from '../components/auth/ProtectedRoute';
 import { UserList } from '../components/admin/UserList';
 import { auth } from '../services/auth';
 import { ReportsDashboard } from '../components/admin/ReportsDashboard';
@@ -41,41 +42,51 @@ export const AppRoutes: React.FC = () => {
       <Route
         path="/superadmin"
         element={
-          <PrivateRoute requireSuperAdmin>
-            <SuperAdminDashboard />
-          </PrivateRoute>
+          <ProtectedRoute>
+            <PrivateRoute requireSuperAdmin>
+              <SuperAdminDashboard />
+            </PrivateRoute>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/admin"
         element={
-          <PrivateRoute requireAdminOrSuperAdmin>
-            <AdminDashboard />
-          </PrivateRoute>
+          <ProtectedRoute>
+            <PrivateRoute requireAdminOrSuperAdmin>
+              <AdminDashboard />
+            </PrivateRoute>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/admin/invoice/create"
         element={
-          <PrivateRoute requireAdminOrSuperAdmin>
-            <CreateInvoice />
-          </PrivateRoute>
+          <ProtectedRoute>
+            <PrivateRoute requireAdminOrSuperAdmin>
+              <CreateInvoice />
+            </PrivateRoute>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/admin/payment/register"
         element={
-          <PrivateRoute requireAdminOrSuperAdmin>
-            <RegisterPayment />
-          </PrivateRoute>
+          <ProtectedRoute>
+            <PrivateRoute requireAdminOrSuperAdmin>
+              <RegisterPayment />
+            </PrivateRoute>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/admin/payment/list"
         element={
-          <PrivateRoute requireAdminOrSuperAdmin>
-            <PaymentList />
-          </PrivateRoute>
+          <ProtectedRoute>
+            <PrivateRoute requireAdminOrSuperAdmin>
+              <PaymentList />
+            </PrivateRoute>
+          </ProtectedRoute>
         }
       />
       <Route
@@ -89,49 +100,59 @@ export const AppRoutes: React.FC = () => {
       <Route
         path="/admin/user/create"
         element={
-          <PrivateRoute requireAdminOrSuperAdmin>
-            <CreateUser />
-          </PrivateRoute>
+          <ProtectedRoute>
+            <PrivateRoute requireAdminOrSuperAdmin>
+              <CreateUser />
+            </PrivateRoute>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/admin/user/list"
         element={
-          <PrivateRoute requireAdminOrSuperAdmin>
-            <UserList />
-          </PrivateRoute>
+          <ProtectedRoute>
+            <PrivateRoute requireAdminOrSuperAdmin>
+              <UserList />
+            </PrivateRoute>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/admin/bank-accounts"
         element={
-          <PrivateRoute requireAdminOrSuperAdmin>
-            <BankAccountsPage />
-          </PrivateRoute>
+          <ProtectedRoute>
+            <PrivateRoute requireAdminOrSuperAdmin>
+              <BankAccountsPage />
+            </PrivateRoute>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/admin/bankaccounts"
         element={
-          <PrivateRoute requireAdminOrSuperAdmin>
-            <BankAccountsPage />
-          </PrivateRoute>
+          <ProtectedRoute>
+            <PrivateRoute requireAdminOrSuperAdmin>
+              <BankAccountsPage />
+            </PrivateRoute>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/cuentas-bancarias"
         element={
-          <PrivateRoute requireAdminOrSuperAdmin>
+          <ProtectedRoute>
             <BankAccountsPage />
-          </PrivateRoute>
+          </ProtectedRoute>
         }
       />
       <Route
         path="/client"
         element={
-          <PrivateRoute>
-            <ClientDashboard />
-          </PrivateRoute>
+          <ProtectedRoute>
+            <PrivateRoute>
+              <ClientDashboard />
+            </PrivateRoute>
+          </ProtectedRoute>
         }
       />
       <Route
@@ -156,9 +177,11 @@ export const AppRoutes: React.FC = () => {
       <Route 
         path="/fidelidad" 
         element={
-          <PrivateRoute>
-            <LoyaltyProgram />
-          </PrivateRoute>
+          <ProtectedRoute>
+            <PrivateRoute>
+              <LoyaltyProgram />
+            </PrivateRoute>
+          </ProtectedRoute>
         } 
       />
       {/* Ruta 404: Página no encontrada */}

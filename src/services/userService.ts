@@ -39,7 +39,8 @@ export const userService = {
       mustChangePassword: user.mustChangePassword,
       passwordHistory: user.passwordHistory || [],
       passwordChangedAt: user.passwordChangedAt,
-      created_at: user.createdAt || new Date().toISOString()
+      created_at: user.createdAt || new Date().toISOString(),
+      first_login: true
     };
 
     const { data, error } = await supabase

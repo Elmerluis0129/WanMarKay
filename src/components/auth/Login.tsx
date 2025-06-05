@@ -55,8 +55,10 @@ export const Login: React.FC = () => {
                         navigate('/superadmin');
                     } else if (user.role === 'admin') {
                         navigate('/admin');
+                    } else if (user.role === 'client') {
+                        navigate('/profile');
                     } else {
-                        navigate('/client');
+                        navigate('/');
                     }
                 }
             }

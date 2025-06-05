@@ -2,7 +2,8 @@ export type UserRole = 'superadmin' | 'admin' | 'client';
 
 export interface User {
     id: string;
-    username: string;  
+    username: string;
+    first_login?: boolean;  
     fullName?: string;  // Mantener por compatibilidad
     full_name?: string; // Usar este campo para la base de datos
     password: string; 

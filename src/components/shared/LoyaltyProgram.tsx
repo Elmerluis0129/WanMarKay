@@ -429,60 +429,62 @@ const LoyaltyProgram: React.FC = () => {
             })}
           </Grid>
 
-          {/* Chart Section */}
-          <Card sx={{ mb: 4, p: 2 }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                Distribución de Clientes por Nivel
-                <Tooltip title="Este gráfico muestra la cantidad de clientes en cada nivel de fidelidad">
-                  <InfoIcon color="action" fontSize="small" />
-                </Tooltip>
-              </Typography>
-              <Typography variant="h5" sx={{ mt: 4, mb: 2 }}>Distribución de Clientes</Typography>
-              <Grid container spacing={4}>
-                <Grid item xs={12} md={5}>
-                  <Box sx={{ 
-                    height: 400, 
-                    width: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
+          {/* Chart Section (solo admins) */}
+          {hasAdminAccess && (
+            <Card sx={{ mb: 4, p: 2 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  Distribución de Clientes por Nivel
+                  <Tooltip title="Este gráfico muestra la cantidad de clientes en cada nivel de fidelidad">
+                    <InfoIcon color="action" fontSize="small" />
+                  </Tooltip>
+                </Typography>
+                <Typography variant="h5" sx={{ mt: 4, mb: 2 }}>Distribución de Clientes</Typography>
+                <Grid container spacing={4}>
+                  <Grid item xs={12} md={5}>
                     <Box sx={{ 
-                      width: '100%', 
-                      maxWidth: 400, // Tamaño máximo del contenedor del gráfico
-                      height: '100%',
+                      height: 400, 
+                      width: '100%',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center'
                     }}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={tierCounts}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            outerRadius={120}
-                            fill="#8884d8"
-                            dataKey="value"
-                            label={({ name, percent }: { name: string; percent: number }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                          >
-                            {tierCounts.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                          </Pie>
-                          <RechartsTooltip content={<CustomTooltip />} />
-                        </PieChart>
-                      </ResponsiveContainer>
+                      <Box sx={{ 
+                        width: '100%', 
+                        maxWidth: 400, // Tamaño máximo del contenedor del gráfico
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={tierCounts}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              outerRadius={120}
+                              fill="#8884d8"
+                              dataKey="value"
+                              label={({ name, percent }: { name: string; percent: number }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                            >
+                              {tierCounts.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <RechartsTooltip content={<CustomTooltip />} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </Box>
                     </Box>
-                  </Box>
+                  </Grid>
                 </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Customer List - Solo visible para administradores */}
           {hasAdminAccess && (

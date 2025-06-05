@@ -31,6 +31,7 @@ import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import LoyaltyIcon from '@mui/icons-material/Loyalty';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import InfoIcon from '@mui/icons-material/Info';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import { auth } from '../../services/auth';
 import { aboutMeService } from '../../services/aboutMeService';
 import { useTheme as useMuiTheme } from '@mui/material/styles';
@@ -483,12 +484,34 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                             </Button>
                             <Button
                                 color="inherit"
-                                onClick={handleLogout}
-                                startIcon={<LogoutIcon />}
-                                sx={{ '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.1)' } }}
+                                variant={isActive('/profile') ? 'contained' : 'text'}
+                                onClick={() => navigate('/profile')}
+                                startIcon={<AccountCircleIcon />}
+                                sx={{
+                                    ...(isActive('/profile') ? {
+                                        backgroundColor: theme.palette.mode === 'dark' ? theme.palette.primary.main : 'rgba(0, 0, 0, 0.08)',
+                                        color: theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : theme.palette.text.primary,
+                                        fontWeight: 'bold',
+                                        '&:hover': {
+                                            backgroundColor: theme.palette.mode === 'dark' ? theme.palette.primary.dark : 'rgba(0, 0, 0, 0.12)'
+                                        },
+                                        boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                                        transform: 'translateY(-2px)'
+                                    } : {
+                                        '&:hover': {
+                                            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                            transform: 'translateY(-2px)'
+                                        }
+                                    }),
+                                    transition: 'all 0.2s ease-in-out',
+                                    mx: 0.5,
+                                    px: 2,
+                                    borderRadius: 2
+                                }}
                             >
-                                Cerrar Sesión
+                                Mi Perfil
                             </Button>
+
                         </Stack>
                     )}
                 </Toolbar>
@@ -566,10 +589,11 @@ export const Navigation: React.FC<NavigationProps> = ({ title = 'WanMarKay' }) =
                         <ListItemIcon><LoyaltyIcon /></ListItemIcon>
                         <ListItemText primary="Programa de Fidelidad" />
                     </ListItem>
-                    <ListItem button onClick={handleLogout}>
-                        <ListItemIcon><LogoutIcon /></ListItemIcon>
-                        <ListItemText primary="Cerrar Sesión" />
+                    <ListItem button onClick={() => { navigate('/profile'); setDrawerOpen(false); }}>
+                        <ListItemIcon><AccountCircleIcon /></ListItemIcon>
+                        <ListItemText primary="Mi Perfil" />
                     </ListItem>
+
                 </List>
             </Drawer>
         </>
