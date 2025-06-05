@@ -31,7 +31,7 @@ import {
   Info as InfoIcon,
   CardGiftcard as GiftIcon
 } from '@mui/icons-material';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import { Navigation } from './Navigation';
 import { userService } from '../../services/userService';
 import { auth } from '../../services/auth';
@@ -459,25 +459,67 @@ const LoyaltyProgram: React.FC = () => {
                         alignItems: 'center',
                         justifyContent: 'center'
                       }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={tierCounts}
-                              cx="50%"
-                              cy="50%"
-                              labelLine={false}
-                              outerRadius={120}
-                              fill="#8884d8"
-                              dataKey="value"
-                              label={({ name, percent }: { name: string; percent: number }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                            >
-                              {tierCounts.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Pie>
-                            <RechartsTooltip content={<CustomTooltip />} />
-                          </PieChart>
-                        </ResponsiveContainer>
+                        {tierCounts.every((entry: { value: number }) => entry.value === 0) ? (
+                          <Box sx={{ textAlign: 'center', py: 6 }}>
+                            <Typography variant="h6" color="text.secondary">Sin datos suficientes para mostrar la distribución</Typography>
+                          </Box>
+                        ) : (
+                          <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                            <ResponsiveContainer width={260} height={320}>
+                              <PieChart width={260} height={320}>
+                                <Pie
+                                  data={tierCounts}
+                                  dataKey="value"
+                                  nameKey="name"
+                                  cx="50%"
+                                  cy="50%"
+                                  outerRadius={110}
+                                  innerRadius={60}
+                                  paddingAngle={3}
+                                  label={({ name, percent, value }: { name: string; percent: number; value: number }) => value > 0 ? `${name}: ${(percent * 100).toFixed(0)}%` : '' }
+                                  labelLine={false}
+                                >
+                                  {tierCounts.map((entry: any, index: number) => (
+                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                  ))}
+                                </Pie>
+                                <RechartsTooltip
+  content={({ active, payload }: { active?: boolean; payload?: Array<any> }) => {
+    if (active && payload && payload.length && payload[0].payload) {
+      const { name, value, percent } = payload[0].payload;
+      return (
+        <Box sx={{ background: '#F8BBD0', color: '#111', p: 1.5, borderRadius: 1, boxShadow: 2, minWidth: 120 }}>
+          <Typography fontWeight="bold" variant="body2" gutterBottom>{name}</Typography>
+          <Typography variant="body2">Clientes: {value}</Typography>
+          <Typography variant="body2">
+  {(() => {
+    // Calcula el porcentaje real usando value y el total
+    const total = tierCounts.reduce((sum: number, t: any) => sum + (typeof t.value === 'number' ? t.value : 0), 0);
+    if (typeof value === 'number' && total > 0) {
+      return `${((value / total) * 100).toFixed(1)}%`;
+    }
+    return '-';
+  })()}
+</Typography>
+        </Box>
+      );
+    }
+    return null;
+  }}
+/>
+                              </PieChart>
+                            </ResponsiveContainer>
+                            <Box sx={{ minWidth: 120, ml: 4 }}>
+                              <Legend
+                                layout="vertical"
+                                align="left"
+                                verticalAlign="middle"
+                                iconType="circle"
+                                wrapperStyle={{ fontSize: 14, width: 120, wordBreak: 'break-word', position: 'relative' }}
+                              />
+                            </Box>
+                          </Box>
+                        )}
                       </Box>
                     </Box>
                   </Grid>
