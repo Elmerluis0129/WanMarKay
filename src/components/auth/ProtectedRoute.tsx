@@ -14,7 +14,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   // Si el cliente está en primer login y NO está en /profile, forzar a /profile
   if (
     user &&
-    user.role === 'client' &&
+    ['client', 'admin', 'superadmin'].includes(user.role) &&
     user.first_login === true &&
     location.pathname !== '/profile'
   ) {
