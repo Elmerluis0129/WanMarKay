@@ -51,6 +51,7 @@ import match from 'autosuggest-highlight/match';
 import parse from 'autosuggest-highlight/parse';
 import InputMask from 'react-input-mask';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import { ProductAutocomplete } from '../shared/ProductAutocomplete';
 
 // Helper para formatear la cédula con guiones: 000-0000000-0
 const formatCedula = (value: string = ''): string => {
@@ -749,13 +750,17 @@ export const CreateInvoice: React.FC = () => {
                             </Typography>
 
                             <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                                <TextField
-                                    inputRef={descriptionInputRef}
-                                    fullWidth
-                                    name="description"
-                                    label="Descripción"
+                                <ProductAutocomplete
                                     value={editingIndex === null ? newItem.description : (editingItem?.description || '')}
-                                    onChange={editingIndex === null ? handleItemChange : (e) => setEditingItem(prev => prev ? {...prev, description: e.target.value} : null)}
+                                    onChange={desc => {
+                                        if (editingIndex === null) {
+                                            setNewItem({ ...newItem, description: desc });
+                                        } else {
+                                            setEditingItem(prev => prev ? { ...prev, description: desc } : null);
+                                        }
+                                    }}
+                                    label="Descripción"
+                                    placeholder="Buscar producto..."
                                 />
                                 <TextField
                                     type="number"
